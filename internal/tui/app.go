@@ -18,6 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kylemclaren/claude-tasks/internal/agent"
 	"github.com/kylemclaren/claude-tasks/internal/db"
 	"github.com/kylemclaren/claude-tasks/internal/executor"
 	"github.com/kylemclaren/claude-tasks/internal/scheduler"
@@ -129,6 +130,10 @@ type Model struct {
 	editingTask    *db.Task
 	formValidation map[int]string // Validation errors per field
 
+	// Agent + model pickers (state stored directly, not in textinput)
+	selectedAgent agent.Name
+	selectedModel string
+
 	// Task type (0 = recurring, 1 = one-off)
 	isOneOff     bool
 	runNow       bool // For one-off: true = run immediately, false = schedule for later
@@ -171,6 +176,8 @@ type cronPreset struct {
 const (
 	fieldName = iota
 	fieldPrompt
+	fieldAgent
+	fieldModel
 	fieldTaskType      // "Recurring" or "One-off"
 	fieldCron          // Only shown for recurring tasks
 	fieldScheduleMode  // "Run Now" or "Schedule for" - only for one-off
@@ -361,6 +368,14 @@ func (m *Model) initFormInputs() {
 	m.promptInput.SetHeight(m.getTextareaHeight())
 	m.promptInput.ShowLineNumbers = false
 
+	// Agent picker placeholder (not a real input)
+	m.formInputs[fieldAgent] = textinput.New()
+	m.formInputs[fieldAgent].Width = inputWidth
+
+	// Model picker placeholder (not a real input)
+	m.formInputs[fieldModel] = textinput.New()
+	m.formInputs[fieldModel].Width = inputWidth
+
 	// Task type placeholder (not a real input, just for indexing)
 	m.formInputs[fieldTaskType] = textinput.New()
 	m.formInputs[fieldTaskType].Width = inputWidth
@@ -460,6 +475,8 @@ func (m *Model) resetForm() {
 	m.editingTask = nil
 	m.isOneOff = false
 	m.runNow = true
+	m.selectedAgent = agent.Claude
+	m.selectedModel = agent.DefaultModel(agent.Claude)
 }
 
 func (m *Model) focusFormField(field int) {
@@ -524,7 +541,7 @@ func (m *Model) getPrevFormField(current int) int {
 // shouldShowField returns true if the field should be shown based on current task type
 func (m *Model) shouldShowField(field int) bool {
 	switch field {
-	case fieldName, fieldPrompt, fieldTaskType, fieldWorkingDir, fieldDiscordWebhook, fieldSlackWebhook:
+	case fieldName, fieldPrompt, fieldAgent, fieldModel, fieldTaskType, fieldWorkingDir, fieldDiscordWebhook, fieldSlackWebhook:
 		return true
 	case fieldCron:
 		return !m.isOneOff // Only for recurring tasks
@@ -1033,6 +1050,15 @@ func (m *Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.formInputs[fieldWorkingDir].SetValue(m.editingTask.WorkingDir)
 				m.formInputs[fieldDiscordWebhook].SetValue(m.editingTask.DiscordWebhook)
 				m.formInputs[fieldSlackWebhook].SetValue(m.editingTask.SlackWebhook)
+				// Set agent/model state from existing task (resolve empties to defaults)
+				m.selectedAgent = m.editingTask.Agent
+				if m.selectedAgent == "" {
+					m.selectedAgent = agent.Claude
+				}
+				m.selectedModel = m.editingTask.Model
+				if m.selectedModel == "" {
+					m.selectedModel = agent.DefaultModel(m.selectedAgent)
+				}
 				// Set task type state from existing task
 				m.isOneOff = m.editingTask.IsOneOff()
 				if m.isOneOff && m.editingTask.ScheduledAt != nil {
@@ -1203,6 +1229,43 @@ func (m *Model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.validateForm()
 			return m, nil
 		}
+		if m.formFocus == fieldAgent {
+			specs := agent.All()
+			idx := 0
+			for i, s := range specs {
+				if s.Name == m.selectedAgent {
+					idx = i
+					break
+				}
+			}
+			if msg.String() == "left" || msg.String() == "h" {
+				idx = (idx - 1 + len(specs)) % len(specs)
+			} else {
+				idx = (idx + 1) % len(specs)
+			}
+			m.selectedAgent = specs[idx].Name
+			// Reset model to the new agent's default
+			m.selectedModel = agent.DefaultModel(m.selectedAgent)
+			return m, nil
+		}
+		if m.formFocus == fieldModel {
+			spec, _ := agent.Get(m.selectedAgent)
+			models := spec.AllowedModels
+			idx := 0
+			for i, mm := range models {
+				if mm == m.selectedModel {
+					idx = i
+					break
+				}
+			}
+			if msg.String() == "left" || msg.String() == "h" {
+				idx = (idx - 1 + len(models)) % len(models)
+			} else {
+				idx = (idx + 1) % len(models)
+			}
+			m.selectedModel = models[idx]
+			return m, nil
+		}
 	case "tab":
 		nextField := m.getNextFormField(m.formFocus)
 		m.focusFormField(nextField)
@@ -1244,8 +1307,9 @@ func (m *Model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.promptInput, cmd = m.promptInput.Update(msg)
 	} else if m.formFocus == fieldScheduledAt {
 		m.scheduledAt, cmd = m.scheduledAt.Update(msg)
-	} else if m.formFocus != fieldTaskType && m.formFocus != fieldScheduleMode {
-		// Don't update toggle fields as text inputs
+	} else if m.formFocus != fieldTaskType && m.formFocus != fieldScheduleMode &&
+		m.formFocus != fieldAgent && m.formFocus != fieldModel {
+		// Don't update toggle/picker fields as text inputs
 		m.formInputs[m.formFocus], cmd = m.formInputs[m.formFocus].Update(msg)
 	}
 
@@ -1323,6 +1387,8 @@ func (m *Model) saveTask() tea.Cmd {
 		task := &db.Task{
 			Name:           name,
 			Prompt:         prompt,
+			Agent:          m.selectedAgent,
+			Model:          m.selectedModel,
 			WorkingDir:     workingDir,
 			DiscordWebhook: discordWebhook,
 			SlackWebhook:   slackWebhook,
@@ -1749,6 +1815,41 @@ func (m Model) renderForm(title string) string {
 		b.WriteString(blurredInputStyle.Render(m.promptInput.View()))
 	}
 	b.WriteString("\n\n")
+
+	// Agent picker
+	b.WriteString(inputLabelStyle.Render("Agent"))
+	b.WriteString("  ")
+	b.WriteString(subtitleStyle.Render("(←/→ to change)"))
+	b.WriteString("\n")
+	{
+		var parts []string
+		for _, spec := range agent.All() {
+			label := string(spec.Name)
+			if spec.Name == m.selectedAgent {
+				label = "[" + label + "]"
+			}
+			parts = append(parts, label)
+		}
+		renderFocused(strings.Join(parts, "  "), m.formFocus == fieldAgent)
+	}
+
+	// Model picker (depends on selectedAgent)
+	b.WriteString(inputLabelStyle.Render("Model"))
+	b.WriteString("  ")
+	b.WriteString(subtitleStyle.Render("(←/→ to change)"))
+	b.WriteString("\n")
+	{
+		spec, _ := agent.Get(m.selectedAgent)
+		var parts []string
+		for _, mm := range spec.AllowedModels {
+			label := mm
+			if mm == m.selectedModel {
+				label = "[" + label + "]"
+			}
+			parts = append(parts, label)
+		}
+		renderFocused(strings.Join(parts, "  "), m.formFocus == fieldModel)
+	}
 
 	// Task Type toggle
 	b.WriteString(inputLabelStyle.Render("Task Type"))
