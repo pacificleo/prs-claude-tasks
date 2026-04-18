@@ -212,32 +212,37 @@ func calculateTableColumns(width int) []table.Column {
 		availableWidth = maxTableWidth
 	}
 
-	// Column proportions (percentages): Name 25%, Schedule 20%, Status 12%, Next 20%, Last 20%
+	// Column proportions (percentages): Name 22%, Agent 18%, Schedule 18%, Status 10%(fixed), Next 16%, Last 16%
 	// Status is fixed width since it's short text
 	statusWidth := 10
-	remaining := availableWidth - statusWidth - 8 // 8 for column separators
+	remaining := availableWidth - statusWidth - 10 // 10 for column separators (6 cols)
 
-	nameWidth := remaining * 25 / 85
-	scheduleWidth := remaining * 20 / 85
-	nextWidth := remaining * 20 / 85
-	lastWidth := remaining * 20 / 85
+	nameWidth := remaining * 22 / 90
+	agentWidth := remaining * 18 / 90
+	scheduleWidth := remaining * 18 / 90
+	nextWidth := remaining * 16 / 90
+	lastWidth := remaining * 16 / 90
 
 	// Ensure minimum widths
 	if nameWidth < 12 {
 		nameWidth = 12
 	}
-	if scheduleWidth < 15 {
-		scheduleWidth = 15
+	if agentWidth < 14 {
+		agentWidth = 14
 	}
-	if nextWidth < 14 {
-		nextWidth = 14
+	if scheduleWidth < 14 {
+		scheduleWidth = 14
 	}
-	if lastWidth < 14 {
-		lastWidth = 14
+	if nextWidth < 12 {
+		nextWidth = 12
+	}
+	if lastWidth < 12 {
+		lastWidth = 12
 	}
 
 	return []table.Column{
 		{Title: "Name", Width: nameWidth},
+		{Title: "Agent", Width: agentWidth},
 		{Title: "Schedule", Width: scheduleWidth},
 		{Title: "Status", Width: statusWidth},
 		{Title: "Next Run", Width: nextWidth},
@@ -571,10 +576,12 @@ func (m *Model) updateTable() {
 	// Get current column widths for truncation
 	columns := m.table.Columns()
 	nameWidth := 18
+	agentWidth := 18
 	scheduleWidth := 18
-	if len(columns) >= 2 {
-		nameWidth = columns[0].Width - 2 // leave room for ellipsis
-		scheduleWidth = columns[1].Width - 2
+	if len(columns) >= 3 {
+		nameWidth = columns[0].Width - 2     // leave room for ellipsis
+		agentWidth = columns[1].Width - 2
+		scheduleWidth = columns[2].Width - 2
 	}
 
 	rows := make([]table.Row, len(tasksToShow))
@@ -629,6 +636,7 @@ func (m *Model) updateTable() {
 
 		rows[i] = table.Row{
 			truncate(task.Name, nameWidth),
+			truncate(agent.ShortDisplay(task.Agent, task.Model), agentWidth),
 			truncate(schedule, scheduleWidth),
 			status,
 			nextRun,
