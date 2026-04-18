@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kylemclaren/claude-tasks/internal/agent"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -139,6 +140,12 @@ func (db *DB) SetUsageThreshold(threshold float64) error {
 
 // CreateTask creates a new task
 func (db *DB) CreateTask(task *Task) error {
+	if task.Agent == "" {
+		task.Agent = agent.Claude
+	}
+	if err := agent.Validate(task.Agent, task.Model); err != nil {
+		return err
+	}
 	result, err := db.conn.Exec(`
 		INSERT INTO tasks (name, prompt, agent, model, cron_expr, scheduled_at, working_dir, discord_webhook, slack_webhook, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -193,6 +200,12 @@ func (db *DB) ListTasks() ([]*Task, error) {
 
 // UpdateTask updates a task
 func (db *DB) UpdateTask(task *Task) error {
+	if task.Agent == "" {
+		task.Agent = agent.Claude
+	}
+	if err := agent.Validate(task.Agent, task.Model); err != nil {
+		return err
+	}
 	task.UpdatedAt = time.Now()
 	_, err := db.conn.Exec(`
 		UPDATE tasks SET name = ?, prompt = ?, agent = ?, model = ?, cron_expr = ?, scheduled_at = ?, working_dir = ?, discord_webhook = ?, slack_webhook = ?, enabled = ?, updated_at = ?, last_run_at = ?, next_run_at = ?

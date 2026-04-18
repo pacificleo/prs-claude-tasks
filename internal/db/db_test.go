@@ -186,3 +186,37 @@ func TestEmptyModelStaysEmptyInStorage(t *testing.T) {
 		t.Errorf("ResolvedModel() = %q, want %q", got.ResolvedModel(), "claude-sonnet-4-6")
 	}
 }
+
+func TestCreateTaskRejectsInvalidModel(t *testing.T) {
+	d := setupTestDB(t)
+	task := &db.Task{
+		Name:     "bogus",
+		Prompt:   "test",
+		Agent:    db.AgentGemini,
+		Model:    "gpt-5.4", // wrong agent
+		CronExpr: "0 * * * * *",
+		Enabled:  true,
+	}
+	if err := d.CreateTask(task); err == nil {
+		t.Fatal("expected error for invalid (agent, model), got nil")
+	}
+}
+
+func TestUpdateTaskRejectsInvalidModel(t *testing.T) {
+	d := setupTestDB(t)
+	task := &db.Task{
+		Name:     "ok",
+		Prompt:   "test",
+		Agent:    db.AgentClaude,
+		Model:    "claude-sonnet-4-6",
+		CronExpr: "0 * * * * *",
+		Enabled:  true,
+	}
+	if err := d.CreateTask(task); err != nil {
+		t.Fatal(err)
+	}
+	task.Model = "not-a-model"
+	if err := d.UpdateTask(task); err == nil {
+		t.Fatal("expected error for invalid model on update, got nil")
+	}
+}
