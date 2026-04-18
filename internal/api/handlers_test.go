@@ -80,3 +80,34 @@ func TestCreateTaskDefaultsAgentToClaude(t *testing.T) {
 		t.Errorf("display = %v, want \"claude@claude-sonnet-4-6\"", resp["display"])
 	}
 }
+
+func TestGetAgents(t *testing.T) {
+	srv, done := newTestServer(t)
+	defer done()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/agents", nil)
+	w := httptest.NewRecorder()
+	srv.Router().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200. body=%s", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Agents []struct {
+			Name         string   `json:"name"`
+			DefaultModel string   `json:"default_model"`
+			Models       []string `json:"models"`
+		} `json:"agents"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Agents) != 3 {
+		t.Fatalf("got %d agents, want 3", len(resp.Agents))
+	}
+	for _, a := range resp.Agents {
+		if len(a.Models) == 0 || a.Models[0] != a.DefaultModel {
+			t.Errorf("agent %s: default_model %q must equal models[0] %v", a.Name, a.DefaultModel, a.Models)
+		}
+	}
+}

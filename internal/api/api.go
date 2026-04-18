@@ -64,6 +64,9 @@ func (s *Server) setupRoutes() {
 
 		// Usage
 		r.Get("/usage", s.GetUsage)
+
+		// Agents
+		r.Get("/agents", s.ListAgents)
 	})
 }
 
