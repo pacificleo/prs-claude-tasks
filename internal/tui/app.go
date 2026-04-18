@@ -23,6 +23,7 @@ import (
 	"github.com/kylemclaren/claude-tasks/internal/executor"
 	"github.com/kylemclaren/claude-tasks/internal/scheduler"
 	"github.com/kylemclaren/claude-tasks/internal/usage"
+	crondesc "github.com/lnquy/cron"
 	"github.com/robfig/cron/v3"
 )
 
@@ -155,6 +156,10 @@ type Model struct {
 	usageData      *usage.Response
 	usageThreshold float64
 	usageErr       error
+
+	// Human-readable cron descriptor (lnquy/cron); shared instance,
+	// safe to call ToDescription concurrently per the lib's design.
+	cronDescriptor *crondesc.ExpressionDescriptor
 
 	// Settings view
 	thresholdInput textinput.Model
@@ -296,6 +301,9 @@ func NewModel(database *db.DB, sched *scheduler.Scheduler, daemonMode bool) Mode
 	// the user *why* usage info is unavailable instead of silently hiding the bar.
 	usageClient, usageInitErr := usage.NewClient()
 
+	// Cron descriptor. Falls back to nil on init failure — callers handle that.
+	cronDesc, _ := crondesc.NewDescriptor()
+
 	// Load threshold from DB
 	threshold, _ := database.GetUsageThreshold()
 
@@ -350,6 +358,7 @@ func NewModel(database *db.DB, sched *scheduler.Scheduler, daemonMode bool) Mode
 		usageClient:     usageClient,
 		usageErr:        usageInitErr,
 		usageThreshold:  threshold,
+		cronDescriptor:  cronDesc,
 		thresholdInput:  thresholdInput,
 	}
 
@@ -1783,6 +1792,25 @@ func (m Model) renderSettings() string {
 	return b.String()
 }
 
+// describeCron returns a human-readable summary of a cron expression for
+// display under the cron input field. Returns "" for empty input and a
+// short hint string for invalid expressions so the user gets immediate
+// feedback while typing.
+func (m Model) describeCron(expr string) string {
+	expr = strings.TrimSpace(expr)
+	if expr == "" {
+		return " "
+	}
+	if m.cronDescriptor == nil {
+		return " "
+	}
+	desc, err := m.cronDescriptor.ToDescription(expr, crondesc.Locale_en)
+	if err != nil {
+		return "(incomplete or invalid cron)"
+	}
+	return desc
+}
+
 func (m Model) renderForm(title string) string {
 	var b strings.Builder
 
@@ -1913,6 +1941,8 @@ func (m Model) renderForm(title string) string {
 	} else {
 		// Cron Expression for recurring tasks
 		renderLabel(fieldCron, "Cron Expression", "Press ? for presets")
+		b.WriteString(subtitleStyle.Render(m.describeCron(m.formInputs[fieldCron].Value())))
+		b.WriteString("\n")
 		renderFocused(m.formInputs[fieldCron].View(), m.formFocus == fieldCron)
 	}
 
