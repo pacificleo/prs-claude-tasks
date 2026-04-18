@@ -1,11 +1,13 @@
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Alert, Modal, FlatList, Platform } from 'react-native';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCreateTask } from '../../hooks/useTasks';
 import { useTheme } from '../../lib/ThemeContext';
 import { useToast } from '../../lib/ToastContext';
 import { borderRadius, spacing } from '../../lib/theme';
+import { apiClient } from '../../lib/api';
+import type { AgentInfo } from '../../lib/types';
 
 const CRON_PRESETS = [
   { name: 'Every minute', expr: '0 * * * * *', desc: 'Runs at the start of every minute' },
@@ -29,6 +31,22 @@ export default function NewTaskScreen() {
   const [cronExpr, setCronExpr] = useState('');
   const [workingDir, setWorkingDir] = useState('.');
   const [showCronPicker, setShowCronPicker] = useState(false);
+
+  // Agent/model picker state
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [agent, setAgent] = useState<string>('claude');
+  const [model, setModel] = useState<string>('');
+
+  useEffect(() => {
+    apiClient.getAgents().then(r => {
+      setAgents(r.agents);
+      const claude = r.agents.find(a => a.name === 'claude');
+      if (claude) {
+        setAgent(claude.name);
+        setModel(claude.default_model);
+      }
+    }).catch(err => console.warn('failed to load agents', err));
+  }, []);
 
   // One-off task state
   const [isOneOff, setIsOneOff] = useState(false);
@@ -72,6 +90,8 @@ export default function NewTaskScreen() {
     const request: Parameters<typeof createTask.mutate>[0] = {
       name: name.trim(),
       prompt: prompt.trim(),
+      agent,
+      model,
       cron_expr: isOneOff ? '' : cronExpr.trim(),
       working_dir: workingDir.trim() || '.',
       enabled: true,
@@ -120,6 +140,60 @@ export default function NewTaskScreen() {
             numberOfLines={4}
             textAlignVertical="top"
           />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Agent</Text>
+          <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceSecondary }]}>
+            {agents.map((a) => (
+              <Pressable
+                key={a.name}
+                style={[
+                  styles.segment,
+                  agent === a.name && [styles.segmentActive, { backgroundColor: colors.surface }],
+                ]}
+                onPress={() => {
+                  setAgent(a.name);
+                  setModel(a.default_model);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: agent === a.name ? colors.textPrimary : colors.textMuted },
+                  ]}
+                >
+                  {a.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Model</Text>
+          <View style={[styles.segmentedControl, styles.segmentedControlWrap, { backgroundColor: colors.surfaceSecondary }]}>
+            {(agents.find((a) => a.name === agent)?.models ?? []).map((m) => (
+              <Pressable
+                key={m}
+                style={[
+                  styles.segment,
+                  styles.segmentWrap,
+                  model === m && [styles.segmentActive, { backgroundColor: colors.surface }],
+                ]}
+                onPress={() => setModel(m)}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: model === m ? colors.textPrimary : colors.textMuted },
+                  ]}
+                >
+                  {m}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.field}>
@@ -500,11 +574,19 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     padding: 4,
   },
+  segmentedControlWrap: {
+    flexWrap: 'wrap',
+  },
   segment: {
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
     borderRadius: borderRadius.sm - 2,
+  },
+  segmentWrap: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    paddingHorizontal: 8,
   },
   segmentActive: {
     shadowColor: '#000',

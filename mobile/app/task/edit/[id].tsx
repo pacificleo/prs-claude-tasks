@@ -6,6 +6,8 @@ import { useTask, useUpdateTask } from '../../../hooks/useTasks';
 import { useTheme } from '../../../lib/ThemeContext';
 import { useToast } from '../../../lib/ToastContext';
 import { borderRadius } from '../../../lib/theme';
+import { apiClient } from '../../../lib/api';
+import type { AgentInfo } from '../../../lib/types';
 
 const CRON_PRESETS = [
   { name: 'Every minute', expr: '0 * * * * *', desc: 'Runs at the start of every minute' },
@@ -34,6 +36,17 @@ export default function EditTaskScreen() {
   const [showCronPicker, setShowCronPicker] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  // Agent/model picker state
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [agent, setAgent] = useState<string>('claude');
+  const [model, setModel] = useState<string>('');
+
+  useEffect(() => {
+    apiClient.getAgents().then(r => {
+      setAgents(r.agents);
+    }).catch(err => console.warn('failed to load agents', err));
+  }, []);
+
   // One-off task state
   const [isOneOff, setIsOneOff] = useState(false);
   const [runNow, setRunNow] = useState(false);
@@ -55,6 +68,8 @@ export default function EditTaskScreen() {
       setCronExpr(task.cron_expr);
       setWorkingDir(task.working_dir);
       setIsOneOff(task.is_one_off);
+      setAgent(task.agent || 'claude');
+      setModel(task.model || '');
       if (task.scheduled_at) {
         setScheduledDate(new Date(task.scheduled_at));
         setRunNow(false);
@@ -64,6 +79,16 @@ export default function EditTaskScreen() {
       setInitialized(true);
     }
   }, [task, initialized]);
+
+  // Resolve empty model to the agent's default once agents have loaded
+  useEffect(() => {
+    if (agents.length > 0 && !model) {
+      const found = agents.find((a) => a.name === agent);
+      if (found) {
+        setModel(found.default_model);
+      }
+    }
+  }, [agents, agent, model]);
 
   const formattedDateTime = useMemo(() => {
     return scheduledDate.toLocaleString(undefined, {
@@ -92,6 +117,8 @@ export default function EditTaskScreen() {
     const request: Parameters<typeof updateTask.mutate>[0]['task'] = {
       name: name.trim(),
       prompt: prompt.trim(),
+      agent,
+      model,
       cron_expr: isOneOff ? '' : cronExpr.trim(),
       working_dir: workingDir.trim() || '.',
       enabled: task?.enabled ?? true,
@@ -150,6 +177,60 @@ export default function EditTaskScreen() {
             numberOfLines={4}
             textAlignVertical="top"
           />
+        </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Agent</Text>
+          <View style={[styles.segmentedControl, { backgroundColor: colors.surfaceSecondary }]}>
+            {agents.map((a) => (
+              <Pressable
+                key={a.name}
+                style={[
+                  styles.segment,
+                  agent === a.name && [styles.segmentActive, { backgroundColor: colors.surface }],
+                ]}
+                onPress={() => {
+                  setAgent(a.name);
+                  setModel(a.default_model);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: agent === a.name ? colors.textPrimary : colors.textMuted },
+                  ]}
+                >
+                  {a.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Model</Text>
+          <View style={[styles.segmentedControl, styles.segmentedControlWrap, { backgroundColor: colors.surfaceSecondary }]}>
+            {(agents.find((a) => a.name === agent)?.models ?? []).map((m) => (
+              <Pressable
+                key={m}
+                style={[
+                  styles.segment,
+                  styles.segmentWrap,
+                  model === m && [styles.segmentActive, { backgroundColor: colors.surface }],
+                ]}
+                onPress={() => setModel(m)}
+              >
+                <Text
+                  style={[
+                    styles.segmentText,
+                    { color: model === m ? colors.textPrimary : colors.textMuted },
+                  ]}
+                >
+                  {m}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
 
         <View style={styles.field}>
@@ -533,11 +614,19 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.sm,
     padding: 4,
   },
+  segmentedControlWrap: {
+    flexWrap: 'wrap',
+  },
   segment: {
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
     borderRadius: borderRadius.sm - 2,
+  },
+  segmentWrap: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    paddingHorizontal: 8,
   },
   segmentActive: {
     shadowColor: '#000',
