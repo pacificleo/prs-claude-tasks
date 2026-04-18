@@ -260,9 +260,22 @@ export function TaskCard({ task }: Props) {
           : cronToHuman(task.cron_expr)}
       </Text>
 
-      <Text style={[styles.nextRun, { color: colors.textMuted }]}>
-        {task.next_run_at ? `Next: ${formatRelativeTime(task.next_run_at)}` : 'Not scheduled'}
-      </Text>
+      <View style={styles.metaRow}>
+        <Text style={[styles.nextRun, { color: colors.textMuted }]}>
+          {task.next_run_at ? `Next: ${formatRelativeTime(task.next_run_at)}` : 'Not scheduled'}
+        </Text>
+        {task.display ? (
+          <Text
+            style={[
+              styles.agentChip,
+              { color: colors.textMuted, backgroundColor: colors.surfaceSecondary },
+            ]}
+            numberOfLines={1}
+          >
+            {task.display}
+          </Text>
+        ) : null}
+      </View>
     </>
   );
 
@@ -366,5 +379,20 @@ const styles = StyleSheet.create({
   },
   nextRun: {
     fontSize: 12,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  agentChip: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    overflow: 'hidden',
+    flexShrink: 1,
   },
 });
