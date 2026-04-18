@@ -291,8 +291,10 @@ func NewModel(database *db.DB, sched *scheduler.Scheduler, daemonMode bool) Mode
 		glamour.WithWordWrap(80),
 	)
 
-	// Usage client
-	usageClient, _ := usage.NewClient()
+	// Usage client. If credentials are missing, NewClient returns an error and
+	// usageClient is nil — we keep the error around so renderUsageBar can show
+	// the user *why* usage info is unavailable instead of silently hiding the bar.
+	usageClient, usageInitErr := usage.NewClient()
 
 	// Load threshold from DB
 	threshold, _ := database.GetUsageThreshold()
@@ -346,6 +348,7 @@ func NewModel(database *db.DB, sched *scheduler.Scheduler, daemonMode bool) Mode
 		viewport:        viewport.New(80, 20),
 		mdRenderer:      renderer,
 		usageClient:     usageClient,
+		usageErr:        usageInitErr,
 		usageThreshold:  threshold,
 		thresholdInput:  thresholdInput,
 	}
@@ -703,7 +706,11 @@ func (m Model) Init() tea.Cmd {
 func (m *Model) fetchUsage() tea.Cmd {
 	return func() tea.Msg {
 		if m.usageClient == nil {
-			return usageUpdatedMsg{err: fmt.Errorf("no credentials")}
+			err := m.usageErr
+			if err == nil {
+				err = fmt.Errorf("no credentials at ~/.claude/.credentials.json — run `claude login`")
+			}
+			return usageUpdatedMsg{err: err}
 		}
 		data, err := m.usageClient.Fetch()
 		return usageUpdatedMsg{data: data, err: err}
@@ -1593,7 +1600,7 @@ func (m Model) renderList() string {
 
 	// Header with usage status (right-justified)
 	logo := spriteIcon + " " + logoStyle.Render("Claude Tasks")
-	if m.usageData != nil && m.width > 0 {
+	if m.width > 0 {
 		usageBar := m.renderUsageBar()
 		logoWidth := lipgloss.Width(logo)
 		usageWidth := lipgloss.Width(usageBar)
@@ -1668,6 +1675,9 @@ func (m Model) renderList() string {
 
 func (m Model) renderUsageBar() string {
 	if m.usageData == nil {
+		if m.usageErr != nil {
+			return statusFail.Render("⚠ usage: " + m.usageErr.Error())
+		}
 		return subtitleStyle.Render("(loading usage...)")
 	}
 
