@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/kylemclaren/claude-tasks/internal/agent"
 	"github.com/kylemclaren/claude-tasks/internal/db"
 	"github.com/kylemclaren/claude-tasks/internal/usage"
 	"github.com/kylemclaren/claude-tasks/internal/version"
@@ -60,6 +61,8 @@ func (s *Server) CreateTask(w http.ResponseWriter, r *http.Request) {
 	task := &db.Task{
 		Name:           req.Name,
 		Prompt:         req.Prompt,
+		Agent:          agent.Name(req.Agent),
+		Model:          req.Model,
 		CronExpr:       req.CronExpr,
 		WorkingDir:     req.WorkingDir,
 		DiscordWebhook: req.DiscordWebhook,
@@ -142,6 +145,8 @@ func (s *Server) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	// Update task fields
 	task.Name = req.Name
 	task.Prompt = req.Prompt
+	task.Agent = agent.Name(req.Agent)
+	task.Model = req.Model
 	task.CronExpr = req.CronExpr
 	task.WorkingDir = req.WorkingDir
 	task.DiscordWebhook = req.DiscordWebhook
@@ -377,6 +382,9 @@ func (s *Server) taskToResponse(task *db.Task, status db.RunStatus) TaskResponse
 		ID:             task.ID,
 		Name:           task.Name,
 		Prompt:         task.Prompt,
+		Agent:          string(task.Agent),
+		Model:          task.ResolvedModel(),
+		Display:        task.Display(),
 		CronExpr:       task.CronExpr,
 		ScheduledAt:    task.ScheduledAt,
 		IsOneOff:       task.IsOneOff(),
@@ -429,6 +437,12 @@ func (s *Server) validateTaskRequest(req *TaskRequest) error {
 	}
 	if req.WorkingDir == "" {
 		req.WorkingDir = "."
+	}
+	if req.Agent == "" {
+		req.Agent = string(agent.Claude)
+	}
+	if err := agent.Validate(agent.Name(req.Agent), req.Model); err != nil {
+		return validationError(err.Error())
 	}
 	return nil
 }

@@ -6,8 +6,10 @@ import "time"
 type TaskRequest struct {
 	Name           string  `json:"name"`
 	Prompt         string  `json:"prompt"`
-	CronExpr       string  `json:"cron_expr"`                // Empty for one-off tasks
-	ScheduledAt    *string `json:"scheduled_at,omitempty"`   // ISO datetime for one-off tasks
+	Agent          string  `json:"agent,omitempty"`        // optional; defaults to "claude"
+	Model          string  `json:"model,omitempty"`        // optional; defaults to agent's default
+	CronExpr       string  `json:"cron_expr"`              // Empty for one-off tasks
+	ScheduledAt    *string `json:"scheduled_at,omitempty"` // ISO datetime for one-off tasks
 	WorkingDir     string  `json:"working_dir"`
 	DiscordWebhook string  `json:"discord_webhook,omitempty"`
 	SlackWebhook   string  `json:"slack_webhook,omitempty"`
@@ -19,6 +21,9 @@ type TaskResponse struct {
 	ID             int64      `json:"id"`
 	Name           string     `json:"name"`
 	Prompt         string     `json:"prompt"`
+	Agent          string     `json:"agent"`
+	Model          string     `json:"model"`   // always populated (resolved)
+	Display        string     `json:"display"` // "claude@claude-sonnet-4-6"
 	CronExpr       string     `json:"cron_expr"`
 	ScheduledAt    *time.Time `json:"scheduled_at,omitempty"`
 	IsOneOff       bool       `json:"is_one_off"`
