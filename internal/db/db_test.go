@@ -136,3 +136,53 @@ func TestUpdateTaskAgent(t *testing.T) {
 		t.Errorf("Agent = %q, want %q", got.Agent, db.AgentCodex)
 	}
 }
+
+func TestCreateAndGetTaskWithModel(t *testing.T) {
+	d := setupTestDB(t)
+
+	task := &db.Task{
+		Name:     "claude opus task",
+		Prompt:   "test",
+		Agent:    db.AgentClaude,
+		Model:    "claude-opus-4-7",
+		CronExpr: "0 * * * * *",
+		Enabled:  true,
+	}
+	if err := d.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	got, err := d.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if got.Model != "claude-opus-4-7" {
+		t.Errorf("Model = %q, want %q", got.Model, "claude-opus-4-7")
+	}
+}
+
+func TestEmptyModelStaysEmptyInStorage(t *testing.T) {
+	d := setupTestDB(t)
+
+	task := &db.Task{
+		Name:     "default model task",
+		Prompt:   "test",
+		Agent:    db.AgentClaude,
+		// Model intentionally not set
+		CronExpr: "0 * * * * *",
+		Enabled:  true,
+	}
+	if err := d.CreateTask(task); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	got, err := d.GetTask(task.ID)
+	if err != nil {
+		t.Fatalf("GetTask: %v", err)
+	}
+	if got.Model != "" {
+		t.Errorf("Model = %q, want empty (lazy default at read time)", got.Model)
+	}
+	if got.ResolvedModel() != "claude-sonnet-4-6" {
+		t.Errorf("ResolvedModel() = %q, want %q", got.ResolvedModel(), "claude-sonnet-4-6")
+	}
+}
