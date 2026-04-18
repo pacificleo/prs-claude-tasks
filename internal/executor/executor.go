@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/kylemclaren/claude-tasks/internal/agent"
 	"github.com/kylemclaren/claude-tasks/internal/db"
 	"github.com/kylemclaren/claude-tasks/internal/usage"
 	"github.com/kylemclaren/claude-tasks/internal/webhook"
@@ -45,8 +46,8 @@ type Result struct {
 func (e *Executor) Execute(ctx context.Context, task *db.Task) *Result {
 	startTime := time.Now()
 
-	// Check usage threshold before running
-	if e.usageClient != nil {
+	// Check usage threshold before running (claude only — gemini/codex don't draw from Anthropic quota)
+	if task.Agent == agent.Claude && e.usageClient != nil {
 		threshold, _ := e.db.GetUsageThreshold()
 		ok, usageData, err := e.usageClient.CheckThreshold(threshold)
 		if err == nil && !ok {
@@ -86,17 +87,25 @@ func (e *Executor) Execute(ctx context.Context, task *db.Task) *Result {
 		return &Result{Error: fmt.Errorf("failed to create run record: %w", err)}
 	}
 
-	// Build and execute command
-	// -p enables print mode (non-interactive), prompt is positional arg
-	// --dangerously-skip-permissions bypasses permission prompts for scheduled tasks
-	cmd := exec.CommandContext(ctx, "claude", "-p", "--dangerously-skip-permissions", task.Prompt)
-	cmd.Dir = task.WorkingDir
+	// Build command via the agent registry. Fail the run cleanly if the agent
+	// is unknown or its binary is missing on PATH.
+	cmd, err := e.buildCommand(ctx, task)
+	if err != nil {
+		endTime := time.Now()
+		run.Status = db.RunStatusFailed
+		run.Error = err.Error()
+		run.EndedAt = &endTime
+		_ = e.db.UpdateTaskRun(run)
+		task.LastRunAt = &endTime
+		_ = e.db.UpdateTask(task)
+		return &Result{Error: err, Duration: time.Since(startTime)}
+	}
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Run()
+	err = cmd.Run()
 	endTime := time.Now()
 	duration := endTime.Sub(startTime)
 
@@ -132,6 +141,22 @@ func (e *Executor) Execute(ctx context.Context, task *db.Task) *Result {
 	}
 
 	return result
+}
+
+// buildCommand constructs the *exec.Cmd to invoke the agent CLI for the task.
+// Returns an error when the agent is unknown or the binary is not on PATH.
+func (e *Executor) buildCommand(ctx context.Context, task *db.Task) (*exec.Cmd, error) {
+	spec, ok := agent.Get(task.Agent)
+	if !ok {
+		return nil, fmt.Errorf("unknown agent %q", task.Agent)
+	}
+	if _, err := exec.LookPath(spec.Binary); err != nil {
+		return nil, fmt.Errorf("binary %q not found in PATH", spec.Binary)
+	}
+	args := spec.BuildArgs(task.ResolvedModel(), task.Prompt)
+	cmd := exec.CommandContext(ctx, spec.Binary, args...)
+	cmd.Dir = task.WorkingDir
+	return cmd, nil
 }
 
 // ExecuteAsync runs a task asynchronously
