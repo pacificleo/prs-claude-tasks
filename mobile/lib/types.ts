@@ -2,6 +2,9 @@ export interface Task {
   id: number;
   name: string;
   prompt: string;
+  agent: string;
+  model: string;
+  display: string;       // "claude@claude-sonnet-4-6"
   cron_expr: string;
   scheduled_at?: string;  // ISO datetime for one-off tasks
   is_one_off: boolean;
@@ -19,12 +22,24 @@ export interface Task {
 export interface TaskRequest {
   name: string;
   prompt: string;
+  agent?: string;                 // defaults to "claude" server-side
+  model?: string;                 // defaults to agent's default server-side
   cron_expr: string;              // Empty for one-off tasks
   scheduled_at?: string;          // ISO datetime for scheduled one-off
   working_dir: string;
   discord_webhook?: string;
   slack_webhook?: string;
   enabled: boolean;
+}
+
+export interface AgentInfo {
+  name: string;
+  default_model: string;
+  models: string[];      // first entry equals default_model
+}
+
+export interface AgentListResponse {
+  agents: AgentInfo[];
 }
 
 export interface TaskListResponse {

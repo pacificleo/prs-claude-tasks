@@ -9,6 +9,7 @@ import type {
   Usage,
   SuccessResponse,
   HealthResponse,
+  AgentListResponse,
 } from './types';
 
 const API_BASE_KEY = 'claude_tasks_api_base';
@@ -164,6 +165,11 @@ class ApiClient {
   // Usage
   async getUsage(): Promise<Usage> {
     return this.request('/usage');
+  }
+
+  // Agents
+  async getAgents(): Promise<AgentListResponse> {
+    return this.request('/agents');
   }
 }
 
