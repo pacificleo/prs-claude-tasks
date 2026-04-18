@@ -2,11 +2,21 @@ package db
 
 import "time"
 
+// Agent represents the CLI agent to use for task execution
+type Agent string
+
+const (
+	AgentClaude Agent = "claude"
+	AgentGemini Agent = "gemini"
+	AgentCodex  Agent = "codex"
+)
+
 // Task represents a scheduled Claude task
 type Task struct {
 	ID             int64      `json:"id"`
 	Name           string     `json:"name"`
 	Prompt         string     `json:"prompt"`
+	Agent          Agent      `json:"agent"`
 	CronExpr       string     `json:"cron_expr"`                // Empty for one-off tasks
 	ScheduledAt    *time.Time `json:"scheduled_at,omitempty"`   // When one-off task should run (nil = run immediately)
 	WorkingDir     string     `json:"working_dir"`
