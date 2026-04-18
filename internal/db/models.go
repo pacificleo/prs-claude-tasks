@@ -1,14 +1,19 @@
 package db
 
-import "time"
+import (
+	"time"
 
-// Agent represents the CLI agent to use for task execution
-type Agent string
+	"github.com/kylemclaren/claude-tasks/internal/agent"
+)
+
+// Agent is an alias for agent.Name kept for backwards-compat with callers
+// that imported db.Agent before the registry was extracted.
+type Agent = agent.Name
 
 const (
-	AgentClaude Agent = "claude"
-	AgentGemini Agent = "gemini"
-	AgentCodex  Agent = "codex"
+	AgentClaude = agent.Claude
+	AgentGemini = agent.Gemini
+	AgentCodex  = agent.Codex
 )
 
 // Task represents a scheduled Claude task
@@ -17,8 +22,9 @@ type Task struct {
 	Name           string     `json:"name"`
 	Prompt         string     `json:"prompt"`
 	Agent          Agent      `json:"agent"`
-	CronExpr       string     `json:"cron_expr"`                // Empty for one-off tasks
-	ScheduledAt    *time.Time `json:"scheduled_at,omitempty"`   // When one-off task should run (nil = run immediately)
+	Model          string     `json:"model"`
+	CronExpr       string     `json:"cron_expr"`              // Empty for one-off tasks
+	ScheduledAt    *time.Time `json:"scheduled_at,omitempty"` // When one-off task should run (nil = run immediately)
 	WorkingDir     string     `json:"working_dir"`
 	DiscordWebhook string     `json:"discord_webhook,omitempty"`
 	SlackWebhook   string     `json:"slack_webhook,omitempty"`
@@ -32,6 +38,19 @@ type Task struct {
 // IsOneOff returns true if this is a one-off (non-recurring) task
 func (t *Task) IsOneOff() bool {
 	return t.CronExpr == ""
+}
+
+// ResolvedModel returns t.Model when set, else the agent's default model.
+func (t *Task) ResolvedModel() string {
+	if t.Model != "" {
+		return t.Model
+	}
+	return agent.DefaultModel(t.Agent)
+}
+
+// Display returns "agent@model" using the resolved model.
+func (t *Task) Display() string {
+	return agent.Display(t.Agent, t.Model)
 }
 
 // TaskRun represents an execution of a task
