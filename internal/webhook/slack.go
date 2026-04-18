@@ -99,7 +99,7 @@ func (s *Slack) SendResult(webhookURL string, task *db.Task, run *db.TaskRun) er
 			Type: "header",
 			Text: &SlackTextObj{
 				Type:  "plain_text",
-				Text:  fmt.Sprintf("%s Task: %s", statusEmoji, task.Name),
+				Text:  fmt.Sprintf("%s Task: %s (%s)", statusEmoji, task.Name, task.Display()),
 				Emoji: true,
 			},
 		},

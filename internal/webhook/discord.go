@@ -87,7 +87,7 @@ func (d *Discord) SendResult(webhookURL string, task *db.Task, run *db.TaskRun) 
 	}
 
 	embed := DiscordEmbed{
-		Title:       fmt.Sprintf("%s Task: %s", statusEmoji, task.Name),
+		Title:       fmt.Sprintf("%s Task: %s (%s)", statusEmoji, task.Name, task.Display()),
 		Description: output,
 		Color:       color,
 		Fields: []EmbedField{
