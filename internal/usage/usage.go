@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -39,7 +40,30 @@ type Client struct {
 	cache      *Response
 	cacheTime  time.Time
 	cacheTTL   time.Duration
-	mu         sync.RWMutex
+	// Negative cache: while errUntil is in the future, Fetch short-circuits
+	// and returns errCache without hitting the API. Set from Retry-After on
+	// 429 responses (with a default fallback for other failures), so a
+	// rate-limit cooldown is respected exactly instead of poked again on the
+	// next ticker fire.
+	errCache error
+	errUntil time.Time
+	mu       sync.RWMutex
+}
+
+// RateLimitError is returned when the API responds with 429. RetryAfter is
+// the absolute time when the cooldown ends; callers can render a live
+// countdown by computing time.Until(RetryAfter) on each frame.
+type RateLimitError struct {
+	Status     int
+	RetryAfter time.Time
+}
+
+func (e *RateLimitError) Error() string {
+	secs := int(time.Until(e.RetryAfter).Seconds())
+	if secs < 0 {
+		secs = 0
+	}
+	return fmt.Sprintf("rate limited; retry in %ds", secs)
 }
 
 // NewClient creates a new usage client
@@ -88,6 +112,11 @@ func (c *Client) Fetch() (*Response, error) {
 		c.mu.RUnlock()
 		return cached, nil
 	}
+	if c.errCache != nil && time.Now().Before(c.errUntil) {
+		err := c.errCache
+		c.mu.RUnlock()
+		return nil, err
+	}
 	c.mu.RUnlock()
 
 	c.mu.Lock()
@@ -96,6 +125,9 @@ func (c *Client) Fetch() (*Response, error) {
 	// Double-check after acquiring write lock
 	if c.cache != nil && time.Since(c.cacheTime) < c.cacheTTL {
 		return c.cache, nil
+	}
+	if c.errCache != nil && time.Now().Before(c.errUntil) {
+		return nil, c.errCache
 	}
 
 	req, err := http.NewRequest("GET", usageAPIURL, nil)
@@ -113,9 +145,26 @@ func (c *Client) Fetch() (*Response, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		retryDur := parseRetryAfter(resp.Header.Get("Retry-After"))
+		if retryDur <= 0 {
+			retryDur = 60 * time.Second // sensible default when the server omits the header
+		}
+		e := &RateLimitError{
+			Status:     resp.StatusCode,
+			RetryAfter: time.Now().Add(retryDur),
+		}
+		c.errCache = e
+		c.errUntil = e.RetryAfter
+		return nil, e
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, formatAPIError(resp.StatusCode, body)
+		apiErr := formatAPIError(resp.StatusCode, body)
+		c.errCache = apiErr
+		c.errUntil = time.Now().Add(30 * time.Second) // back off briefly on other failures
+		return nil, apiErr
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -130,8 +179,25 @@ func (c *Client) Fetch() (*Response, error) {
 
 	c.cache = &usage
 	c.cacheTime = time.Now()
+	c.errCache = nil
+	c.errUntil = time.Time{}
 
 	return &usage, nil
+}
+
+// parseRetryAfter parses the HTTP Retry-After header. Per RFC 7231 it is
+// either an integer seconds value or an HTTP-date.
+func parseRetryAfter(value string) time.Duration {
+	if value == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(value); err == nil {
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(value); err == nil {
+		return time.Until(t)
+	}
+	return 0
 }
 
 // CheckThreshold returns true if usage is below the threshold, false if above

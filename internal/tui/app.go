@@ -709,7 +709,6 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadTasks(),
 		m.spinner.Tick,
-		m.fetchUsage(),
 		tickCmd(),
 		usageTickCmd(),
 	)
@@ -1706,7 +1705,16 @@ func (m Model) renderList() string {
 func (m Model) renderUsageBar() string {
 	if m.usageData == nil {
 		if m.usageErr != nil {
-			msg := "⚠ usage: " + m.usageErr.Error()
+			var msg string
+			if rle, ok := m.usageErr.(*usage.RateLimitError); ok {
+				secs := int(time.Until(rle.RetryAfter).Seconds())
+				if secs < 0 {
+					secs = 0
+				}
+				msg = fmt.Sprintf("Usage: Rate limited. Retrying after %ds", secs)
+			} else {
+				msg = "⚠ usage: " + m.usageErr.Error()
+			}
 			// Cap so a long error can't push the logo off the header.
 			// Reserve roughly: logo (~16 cells) + min padding (2) + app padding (4) + slack.
 			if m.width > 0 {
