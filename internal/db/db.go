@@ -14,6 +14,7 @@ import (
 // DB wraps the SQLite database connection
 type DB struct {
 	conn *sql.DB
+	path string
 }
 
 // New creates a new database connection
@@ -29,7 +30,7 @@ func New(dbPath string) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	db := &DB{conn: conn}
+	db := &DB{conn: conn, path: dbPath}
 	if err := db.migrate(); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("failed to migrate database: %w", err)
@@ -41,6 +42,11 @@ func New(dbPath string) (*DB, error) {
 // Close closes the database connection
 func (db *DB) Close() error {
 	return db.conn.Close()
+}
+
+// Path returns the filesystem path of the underlying SQLite database.
+func (db *DB) Path() string {
+	return db.path
 }
 
 func (db *DB) migrate() error {

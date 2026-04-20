@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -1622,6 +1623,13 @@ func (m Model) renderList() string {
 		b.WriteString(usageBar)
 	} else {
 		b.WriteString(logo)
+	}
+	b.WriteString("\n")
+	if dbPath := m.db.Path(); dbPath != "" {
+		if abs, err := filepath.Abs(dbPath); err == nil {
+			dbPath = abs
+		}
+		b.WriteString(lipgloss.NewStyle().Foreground(claudeBlue).Render(dbPath))
 	}
 	b.WriteString("\n\n")
 
