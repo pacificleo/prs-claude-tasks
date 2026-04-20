@@ -703,6 +703,7 @@ type thresholdSavedMsg struct{ threshold float64 }
 type lastRunStatusesMsg struct{ statuses map[int64]db.RunStatus }
 type errMsg struct{ err error }
 type tickMsg time.Time
+type usageTickMsg time.Time
 
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
@@ -710,6 +711,7 @@ func (m Model) Init() tea.Cmd {
 		m.spinner.Tick,
 		m.fetchUsage(),
 		tickCmd(),
+		usageTickCmd(),
 	)
 }
 
@@ -730,6 +732,14 @@ func (m *Model) fetchUsage() tea.Cmd {
 func tickCmd() tea.Cmd {
 	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+// usageTickCmd fires every 30s to refresh the usage bar. Kept separate from
+// the 1Hz tick so a transient API failure doesn't get hammered at 1 req/sec.
+func usageTickCmd() tea.Cmd {
+	return tea.Tick(30*time.Second, func(t time.Time) tea.Msg {
+		return usageTickMsg(t)
 	})
 }
 
@@ -853,7 +863,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		cmds = append(cmds, tickCmd(), m.checkRunningTasks(), m.fetchUsage(), m.fetchLastRunStatuses())
+		cmds = append(cmds, tickCmd(), m.checkRunningTasks(), m.fetchLastRunStatuses())
+
+	case usageTickMsg:
+		cmds = append(cmds, usageTickCmd(), m.fetchUsage())
 
 	case tasksLoadedMsg:
 		m.tasks = msg.tasks
