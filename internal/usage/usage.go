@@ -50,7 +50,7 @@ func NewClient() (*Client, error) {
 	}
 
 	return &Client{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		httpClient: &http.Client{Timeout: 4 * time.Second},
 		token:      token,
 		cacheTTL:   30 * time.Second, // Cache for 30 seconds
 	}, nil
@@ -115,7 +115,7 @@ func (c *Client) Fetch() (*Response, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, formatAPIError(resp.StatusCode, body)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -185,4 +185,27 @@ func (r *Response) FormatTimeUntilReset() string {
 		return fmt.Sprintf("%dm", minutes)
 	}
 	return "now"
+}
+
+// formatAPIError turns an Anthropic error response into a short human string.
+// Anthropic returns errors as {"type":"error","error":{"type":"...","message":"..."}};
+// we surface the type and message instead of dumping the raw JSON, which
+// otherwise wraps and breaks the TUI header layout.
+func formatAPIError(status int, body []byte) error {
+	var envelope struct {
+		Error struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &envelope); err == nil && envelope.Error.Type != "" {
+		if envelope.Error.Message != "" {
+			return fmt.Errorf("HTTP %d %s: %s", status, envelope.Error.Type, envelope.Error.Message)
+		}
+		return fmt.Errorf("HTTP %d %s", status, envelope.Error.Type)
+	}
+	if status == http.StatusTooManyRequests {
+		return fmt.Errorf("HTTP %d rate limited", status)
+	}
+	return fmt.Errorf("HTTP %d", status)
 }

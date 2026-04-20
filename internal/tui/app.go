@@ -1706,7 +1706,23 @@ func (m Model) renderList() string {
 func (m Model) renderUsageBar() string {
 	if m.usageData == nil {
 		if m.usageErr != nil {
-			return statusFail.Render("⚠ usage: " + m.usageErr.Error())
+			msg := "⚠ usage: " + m.usageErr.Error()
+			// Cap so a long error can't push the logo off the header.
+			// Reserve roughly: logo (~16 cells) + min padding (2) + app padding (4) + slack.
+			if m.width > 0 {
+				maxW := m.width - 25
+				if maxW < 20 {
+					maxW = 20
+				}
+				if lipgloss.Width(msg) > maxW {
+					runes := []rune(msg)
+					for len(runes) > 1 && lipgloss.Width(string(runes)+"…") > maxW {
+						runes = runes[:len(runes)-1]
+					}
+					msg = string(runes) + "…"
+				}
+			}
+			return statusFail.Render(msg)
 		}
 		return subtitleStyle.Render("(loading usage...)")
 	}
