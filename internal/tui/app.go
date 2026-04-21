@@ -1044,22 +1044,7 @@ func (m *Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(tasksToUse) > 0 {
 			idx := m.table.Cursor()
 			if idx < len(tasksToUse) {
-				task := tasksToUse[idx]
-				if m.scheduler != nil {
-					if err := m.scheduler.RunTaskNow(task.ID); err != nil {
-						m.setStatus("Error: "+err.Error(), true)
-					} else {
-						m.runningTasks[task.ID] = true
-						m.updateTable()
-						m.setStatus("Started: "+task.Name, false)
-					}
-				} else if m.executor != nil {
-					// In daemon mode, run directly via executor
-					m.executor.ExecuteAsync(task)
-					m.runningTasks[task.ID] = true
-					m.updateTable()
-					m.setStatus("Started: "+task.Name, false)
-				}
+				m.runTaskNow(tasksToUse[idx])
 			}
 		}
 		return m, nil
@@ -1367,6 +1352,9 @@ func (m *Model) updateOutput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.loadTaskRuns(m.selectedTask.ID)
 	case "t":
 		return m, m.toggleTask(m.selectedTask.ID)
+	case "x":
+		m.runTaskNow(m.selectedTask)
+		return m, m.loadTaskRuns(m.selectedTask.ID)
 	}
 
 	m.viewport, cmd = m.viewport.Update(msg)
@@ -1490,6 +1478,26 @@ func (m *Model) deleteTask(id int64) tea.Cmd {
 		}
 		return taskDeletedMsg{id}
 	}
+}
+
+// runTaskNow kicks off an immediate execution of task, bypassing the cron
+// schedule. Uses the embedded scheduler when present, otherwise falls back to
+// the executor (daemon mode). Updates runningTasks + status line either way.
+func (m *Model) runTaskNow(task *db.Task) {
+	if m.scheduler != nil {
+		if err := m.scheduler.RunTaskNow(task.ID); err != nil {
+			m.setStatus("Error: "+err.Error(), true)
+			return
+		}
+	} else if m.executor != nil {
+		m.executor.ExecuteAsync(task)
+	} else {
+		m.setStatus("No scheduler or executor available", true)
+		return
+	}
+	m.runningTasks[task.ID] = true
+	m.updateTable()
+	m.setStatus("Started: "+task.Name, false)
 }
 
 func (m *Model) toggleTask(id int64) tea.Cmd {
@@ -2093,6 +2101,7 @@ func (m Model) renderOutput() string {
 	helpText := helpKeyStyle.Render("↑/↓") + helpDescStyle.Render(" scroll • ") +
 		helpKeyStyle.Render("t") + helpDescStyle.Render(" toggle • ") +
 		helpKeyStyle.Render("r") + helpDescStyle.Render(" refresh • ") +
+		helpKeyStyle.Render("x") + helpDescStyle.Render(" execute • ") +
 		helpKeyStyle.Render("esc") + helpDescStyle.Render(" back")
 	b.WriteString(helpText)
 
