@@ -9,7 +9,7 @@ import (
 
 func setupTestDB(t *testing.T) *db.DB {
 	t.Helper()
-	tmpFile, err := os.CreateTemp("", "claude-tasks-test-*.db")
+	tmpFile, err := os.CreateTemp("", "ai-tasks-test-*.db")
 	if err != nil {
 		t.Fatal(err)
 	}

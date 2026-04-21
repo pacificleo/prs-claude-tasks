@@ -143,7 +143,7 @@ func (s *Slack) SendResult(webhookURL string, task *db.Task, run *db.TaskRun) er
 	blocks = append(blocks, SlackBlock{
 		Type: "context",
 		Elements: []SlackElement{
-			{Type: "mrkdwn", Text: "Claude Tasks Scheduler"},
+			{Type: "mrkdwn", Text: "AI Tasks Scheduler"},
 		},
 	})
 

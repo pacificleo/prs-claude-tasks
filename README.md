@@ -1,10 +1,10 @@
 <img width="978" height="603" alt="Screenshot 2026-01-14 at 21 18 04" src="https://github.com/user-attachments/assets/476bb9c9-e4d6-4e16-8ee2-9364c6d07aa3" />
 
-# Claude Tasks
+# AI Tasks
 
 A TUI scheduler for running Claude tasks on a cron schedule. Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
-![Claude Tasks TUI](https://img.shields.io/badge/TUI-BubbleTea-ff69b4)
+![AI Tasks TUI](https://img.shields.io/badge/TUI-BubbleTea-ff69b4)
 ![Go](https://img.shields.io/badge/Go-1.24+-00ADD8)
 
 ## Features
@@ -15,7 +15,7 @@ A TUI scheduler for running Claude tasks on a cron schedule. Built with [Bubble 
 - **Usage Tracking** - Monitor your Anthropic API usage with visual progress bars
 - **Usage Thresholds** - Automatically skip tasks when usage exceeds a configurable threshold
 - **Markdown Rendering** - Task output rendered with [Glamour](https://github.com/charmbracelet/glamour)
-- **Self-Update** - Upgrade to the latest version with `claude-tasks upgrade`
+- **Self-Update** - Upgrade to the latest version with `ai-tasks upgrade`
 - **SQLite Storage** - Persistent task and run history
 
 ## Installation
@@ -36,10 +36,10 @@ git clone https://github.com/kylemclaren/claude-tasks.git
 cd claude-tasks
 
 # Build
-go build -o claude-tasks ./cmd/claude-tasks
+go build -o ai-tasks ./cmd/ai-tasks
 
 # Run
-./claude-tasks
+./ai-tasks
 ```
 
 ### Requirements
@@ -53,10 +53,10 @@ go build -o claude-tasks ./cmd/claude-tasks
 ### CLI Commands
 
 ```bash
-claude-tasks              # Launch the interactive TUI
-claude-tasks version      # Show version information
-claude-tasks upgrade      # Upgrade to the latest version
-claude-tasks help         # Show help message
+ai-tasks              # Launch the interactive TUI
+ai-tasks version      # Show version information
+ai-tasks upgrade      # Upgrade to the latest version
+ai-tasks help         # Show help message
 ```
 
 ### Keybindings
@@ -112,22 +112,22 @@ Press `s` to configure the usage threshold (default: 80%). When your Anthropic A
 
 The header shows real-time usage:
 ```
-◆ Claude Tasks  5h ████░░░░░░ 42% │ 7d ██████░░░░ 61% │ ⏱ 2h15m │ ⚡ 80%
+◆ AI Tasks  5h ████░░░░░░ 42% │ 7d ██████░░░░ 61% │ ⏱ 2h15m │ ⚡ 80%
 ```
 
 ## Configuration
 
-By default the SQLite database lives at `~/.claude-tasks/tasks.db`. The
+By default the SQLite database lives at `~/.ai-tasks/tasks.db`. The
 parent directory also holds the daemon PID file when running in daemon
 mode.
 
 Override the database path:
 ```bash
-./claude-tasks --db /custom/path/tasks.db
+./ai-tasks --db /custom/path/tasks.db
 ```
 
-The `--db` flag is accepted by every command (`claude-tasks`,
-`claude-tasks daemon`, `claude-tasks serve`).
+The `--db` flag is accepted by every command (`ai-tasks`,
+`ai-tasks daemon`, `ai-tasks serve`).
 
 ## Example Tasks
 

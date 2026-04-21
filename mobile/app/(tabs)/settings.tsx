@@ -133,7 +133,7 @@ export default function SettingsScreen() {
       <CardWrapper style={sectionStyle} {...(useGlass && { glassEffectStyle: 'regular' })}>
         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>API Server</Text>
         <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>
-          The URL of your Claude Tasks server
+          The URL of your AI Tasks server
         </Text>
 
         {isEditingUrl ? (
@@ -238,7 +238,7 @@ export default function SettingsScreen() {
           <Text style={[styles.aboutValue, { color: colors.textPrimary }]}>1.0.0</Text>
         </View>
         <View style={[styles.aboutRow, { borderBottomColor: colors.surfaceSecondary }]}>
-          <Text style={[styles.aboutLabel, { color: colors.textSecondary }]}>Claude Tasks</Text>
+          <Text style={[styles.aboutLabel, { color: colors.textSecondary }]}>AI Tasks</Text>
           <Text style={[styles.aboutValue, { color: colors.textPrimary }]}>Mobile Client</Text>
         </View>
         <View style={[styles.aboutRow, { borderBottomColor: colors.surfaceSecondary }]}>

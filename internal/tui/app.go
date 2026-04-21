@@ -1621,7 +1621,7 @@ func (m Model) renderList() string {
 	var b strings.Builder
 
 	// Header with usage status (right-justified)
-	logo := spriteIcon + " " + logoStyle.Render("Claude Tasks")
+	logo := spriteIcon + " " + logoStyle.Render("AI Tasks")
 	if m.width > 0 {
 		usageBar := m.renderUsageBar()
 		logoWidth := lipgloss.Width(logo)

@@ -65,7 +65,7 @@ func main() {
 	}
 }
 
-// defaultDBPath returns the default --db value: ~/.claude-tasks/tasks.db.
+// defaultDBPath returns the default --db value: ~/.ai-tasks/tasks.db.
 // Falls back to "tasks.db" in the current directory if the home directory
 // can't be resolved (extremely unusual).
 func defaultDBPath() string {
@@ -73,7 +73,7 @@ func defaultDBPath() string {
 	if err != nil {
 		return "tasks.db"
 	}
-	return filepath.Join(home, ".claude-tasks", "tasks.db")
+	return filepath.Join(home, ".ai-tasks", "tasks.db")
 }
 
 // pidPathFor returns the daemon PID file path co-located with the DB.
@@ -236,19 +236,19 @@ func isDaemonRunning(pidPath string) (int, bool) {
 }
 
 func printHelp() {
-	fmt.Println(`claude-tasks - Schedule and run Claude CLI tasks via cron
+	fmt.Println(`ai-tasks - Schedule and run Claude CLI tasks via cron
 
 Usage:
-  claude-tasks [--db PATH]                    Launch the interactive TUI
-  claude-tasks daemon [--db PATH]             Run scheduler in foreground (for services)
-  claude-tasks serve  [--db PATH] [--port N]  Run HTTP API server (for mobile/remote access)
-  claude-tasks version                        Show version information
-  claude-tasks upgrade                        Upgrade to the latest version
-  claude-tasks help                           Show this help message
+  ai-tasks [--db PATH]                    Launch the interactive TUI
+  ai-tasks daemon [--db PATH]             Run scheduler in foreground (for services)
+  ai-tasks serve  [--db PATH] [--port N]  Run HTTP API server (for mobile/remote access)
+  ai-tasks version                        Show version information
+  ai-tasks upgrade                        Upgrade to the latest version
+  ai-tasks help                           Show this help message
 
 Flags:
   --db PATH    Absolute path to the SQLite database file
-               (default: ~/.claude-tasks/tasks.db)
+               (default: ~/.ai-tasks/tasks.db)
   --port N     HTTP server port for 'serve' (default: 8080)
 
 For more information, visit: https://github.com/kylemclaren/claude-tasks`)

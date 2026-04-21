@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-# claude-tasks installer
+# ai-tasks installer
 # Usage: curl -fsSL https://raw.githubusercontent.com/kylemclaren/claude-tasks/main/install.sh | bash
 
 REPO="kylemclaren/claude-tasks"
-INSTALL_DIR="${CLAUDE_TASKS_INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${AI_TASKS_INSTALL_DIR:-$HOME/.local/bin}"
 
 # Colors
 RED='\033[0;31m'
@@ -74,12 +74,12 @@ get_latest_version() {
 
 # Download and install
 install() {
-    BINARY_NAME="claude-tasks-${PLATFORM}"
+    BINARY_NAME="ai-tasks-${PLATFORM}"
     if [ "$OS" = "windows" ]; then
         BINARY_NAME="${BINARY_NAME}.exe"
-        TARGET_NAME="claude-tasks.exe"
+        TARGET_NAME="ai-tasks.exe"
     else
-        TARGET_NAME="claude-tasks"
+        TARGET_NAME="ai-tasks"
     fi
 
     DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_VERSION}/${BINARY_NAME}"
@@ -126,7 +126,7 @@ check_path() {
 
     # Add to shell config
     echo "" >> "$shell_rc"
-    echo "# Added by claude-tasks installer" >> "$shell_rc"
+    echo "# Added by ai-tasks installer" >> "$shell_rc"
     echo "$path_line" >> "$shell_rc"
     info "Added $INSTALL_DIR to PATH in $shell_rc"
 
@@ -149,24 +149,24 @@ setup_sprite_service() {
     fi
 
     # Stop and remove existing service if present (ignore errors)
-    sprite-env services stop claude-tasks-daemon >/dev/null 2>&1 || true
-    sprite-env services delete claude-tasks-daemon >/dev/null 2>&1 || true
+    sprite-env services stop ai-tasks-daemon >/dev/null 2>&1 || true
+    sprite-env services delete ai-tasks-daemon >/dev/null 2>&1 || true
 
     # Create the daemon service
-    if sprite-env services create claude-tasks-daemon \
+    if sprite-env services create ai-tasks-daemon \
         --cmd "$INSTALL_DIR/$TARGET_NAME" \
         --args daemon \
         --no-stream >/dev/null 2>&1; then
         info "Daemon service created and started"
     else
-        warn "Failed to create daemon service (you can run 'claude-tasks daemon' manually)"
+        warn "Failed to create daemon service (you can run 'ai-tasks daemon' manually)"
     fi
 
     echo ""
     echo -e "${CYAN}Sprite service commands:${NC}"
-    echo "  sprite-env services list                       # List all services"
-    echo "  sprite-env services stop claude-tasks-daemon   # Stop daemon"
-    echo "  sprite-env services start claude-tasks-daemon  # Start daemon"
+    echo "  sprite-env services list                    # List all services"
+    echo "  sprite-env services stop ai-tasks-daemon    # Stop daemon"
+    echo "  sprite-env services start ai-tasks-daemon   # Start daemon"
     echo ""
 }
 
@@ -176,19 +176,19 @@ verify() {
     echo -e "${GREEN}✓ Installation successful!${NC}"
     echo ""
     echo "Run the TUI:"
-    echo -e "  ${CYAN}claude-tasks${NC}"
+    echo -e "  ${CYAN}ai-tasks${NC}"
     echo ""
     echo "Run scheduler as daemon:"
-    echo -e "  ${CYAN}claude-tasks daemon${NC}"
+    echo -e "  ${CYAN}ai-tasks daemon${NC}"
     echo ""
-    echo "Data stored in: ~/.claude-tasks/"
+    echo "Data stored in: ~/.ai-tasks/"
     echo ""
 }
 
 main() {
     echo ""
     echo "╔═══════════════════════════════════════════╗"
-    echo "║       claude-tasks installer              ║"
+    echo "║       ai-tasks installer                  ║"
     echo "╚═══════════════════════════════════════════╝"
     echo ""
 

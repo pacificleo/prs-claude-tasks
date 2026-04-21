@@ -53,9 +53,9 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
         {/* Logo/Header */}
         <View style={styles.header}>
           <Text style={[styles.logo, { color: colors.orange }]}>▀▄█▄▀</Text>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Claude Tasks</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>AI Tasks</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Connect to your Claude Tasks server
+            Connect to your AI Tasks server
           </Text>
         </View>
 
@@ -64,7 +64,7 @@ export function SetupScreen({ onComplete }: SetupScreenProps) {
           <View style={styles.field}>
             <Text style={[styles.label, { color: colors.textPrimary }]}>API URL</Text>
             <Text style={[styles.hint, { color: colors.textMuted }]}>
-              The URL of your Claude Tasks server
+              The URL of your AI Tasks server
             </Text>
             <TextInput
               style={[styles.input, {

@@ -168,10 +168,10 @@ func getAssetName() string {
 		os = "Linux"
 	} else if os == "windows" {
 		os = "Windows"
-		return fmt.Sprintf("claude-tasks_%s_%s.zip", os, arch)
+		return fmt.Sprintf("ai-tasks_%s_%s.zip", os, arch)
 	}
 
-	return fmt.Sprintf("claude-tasks_%s_%s.tar.gz", os, arch)
+	return fmt.Sprintf("ai-tasks_%s_%s.tar.gz", os, arch)
 }
 
 func downloadAsset(url string) (string, error) {
@@ -192,7 +192,7 @@ func downloadAsset(url string) (string, error) {
 		return "", fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
-	tmpFile, err := os.CreateTemp("", "claude-tasks-*")
+	tmpFile, err := os.CreateTemp("", "ai-tasks-*")
 	if err != nil {
 		return "", err
 	}
@@ -232,11 +232,11 @@ func extractTarGz(tarPath string) (string, error) {
 			return "", err
 		}
 
-		// Look for the claude-tasks binary
+		// Look for the ai-tasks binary
 		if header.Typeflag == tar.TypeReg &&
-			(header.Name == "claude-tasks" || strings.HasSuffix(header.Name, "/claude-tasks")) {
+			(header.Name == "ai-tasks" || strings.HasSuffix(header.Name, "/ai-tasks")) {
 
-			tmpFile, err := os.CreateTemp("", "claude-tasks-bin-*")
+			tmpFile, err := os.CreateTemp("", "ai-tasks-bin-*")
 			if err != nil {
 				return "", err
 			}

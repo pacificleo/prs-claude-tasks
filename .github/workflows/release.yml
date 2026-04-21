@@ -42,13 +42,13 @@ jobs:
           CGO_ENABLED: 1
           CC: ${{ matrix.goarch == 'arm64' && 'aarch64-linux-gnu-gcc' || 'gcc' }}
         run: |
-          go build -ldflags="-s -w" -o claude-tasks-${{ matrix.suffix }} ./cmd/claude-tasks
+          go build -ldflags="-s -w" -o ai-tasks-${{ matrix.suffix }} ./cmd/ai-tasks
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: claude-tasks-${{ matrix.suffix }}
-          path: claude-tasks-${{ matrix.suffix }}
+          name: ai-tasks-${{ matrix.suffix }}
+          path: ai-tasks-${{ matrix.suffix }}
 
   build-macos:
     name: Build macOS
@@ -76,13 +76,13 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 1
         run: |
-          go build -ldflags="-s -w" -o claude-tasks-${{ matrix.suffix }} ./cmd/claude-tasks
+          go build -ldflags="-s -w" -o ai-tasks-${{ matrix.suffix }} ./cmd/ai-tasks
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: claude-tasks-${{ matrix.suffix }}
-          path: claude-tasks-${{ matrix.suffix }}
+          name: ai-tasks-${{ matrix.suffix }}
+          path: ai-tasks-${{ matrix.suffix }}
 
   build-windows:
     name: Build Windows
@@ -103,13 +103,13 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: 1
         run: |
-          go build -ldflags="-s -w" -o claude-tasks-windows-amd64.exe ./cmd/claude-tasks
+          go build -ldflags="-s -w" -o ai-tasks-windows-amd64.exe ./cmd/ai-tasks
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: claude-tasks-windows-amd64.exe
-          path: claude-tasks-windows-amd64.exe
+          name: ai-tasks-windows-amd64.exe
+          path: ai-tasks-windows-amd64.exe
 
   release:
     name: Create Release
@@ -127,12 +127,12 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release
-          cp artifacts/claude-tasks-linux-amd64/claude-tasks-linux-amd64 release/
-          cp artifacts/claude-tasks-linux-arm64/claude-tasks-linux-arm64 release/
-          cp artifacts/claude-tasks-darwin-amd64/claude-tasks-darwin-amd64 release/
-          cp artifacts/claude-tasks-darwin-arm64/claude-tasks-darwin-arm64 release/
-          cp artifacts/claude-tasks-windows-amd64.exe/claude-tasks-windows-amd64.exe release/
-          chmod +x release/claude-tasks-*
+          cp artifacts/ai-tasks-linux-amd64/ai-tasks-linux-amd64 release/
+          cp artifacts/ai-tasks-linux-arm64/ai-tasks-linux-arm64 release/
+          cp artifacts/ai-tasks-darwin-amd64/ai-tasks-darwin-amd64 release/
+          cp artifacts/ai-tasks-darwin-arm64/ai-tasks-darwin-arm64 release/
+          cp artifacts/ai-tasks-windows-amd64.exe/ai-tasks-windows-amd64.exe release/
+          chmod +x release/ai-tasks-*
 
       - name: Create checksums
         run: |

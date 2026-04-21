@@ -96,7 +96,7 @@ func (d *Discord) SendResult(webhookURL string, task *db.Task, run *db.TaskRun) 
 			{Name: "Working Dir", Value: fmt.Sprintf("`%s`", task.WorkingDir), Inline: true},
 		},
 		Timestamp: run.StartedAt.Format(time.RFC3339),
-		Footer:    &EmbedFooter{Text: "Claude Tasks Scheduler"},
+		Footer:    &EmbedFooter{Text: "AI Tasks Scheduler"},
 	}
 
 	// Add error field if present - errors still use code block for readability

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 # Build
-go build -o claude-tasks ./cmd/claude-tasks
+go build -o ai-tasks ./cmd/ai-tasks
 
 # Run tests
 go test -v ./...
@@ -21,29 +21,29 @@ golangci-lint run --timeout=5m
 VERSION=$(git describe --tags --always)
 COMMIT=$(git rev-parse --short HEAD)
 DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-go build -ldflags="-s -w -X github.com/kylemclaren/claude-tasks/internal/version.Version=$VERSION -X github.com/kylemclaren/claude-tasks/internal/version.Commit=$COMMIT -X github.com/kylemclaren/claude-tasks/internal/version.BuildDate=$DATE" -o claude-tasks ./cmd/claude-tasks
+go build -ldflags="-s -w -X github.com/kylemclaren/claude-tasks/internal/version.Version=$VERSION -X github.com/kylemclaren/claude-tasks/internal/version.Commit=$COMMIT -X github.com/kylemclaren/claude-tasks/internal/version.BuildDate=$DATE" -o ai-tasks ./cmd/ai-tasks
 ```
 
 ## CLI Commands
 
 ```bash
-claude-tasks              # Launch the interactive TUI
-claude-tasks daemon       # Run scheduler in foreground (for services)
-claude-tasks serve        # Run HTTP API server (default port 8080)
-claude-tasks serve --port 3000  # Run API on custom port
-claude-tasks version      # Show version information
-claude-tasks upgrade      # Upgrade to the latest version
-claude-tasks help         # Show help message
+ai-tasks              # Launch the interactive TUI
+ai-tasks daemon       # Run scheduler in foreground (for services)
+ai-tasks serve        # Run HTTP API server (default port 8080)
+ai-tasks serve --port 3000  # Run API on custom port
+ai-tasks version      # Show version information
+ai-tasks upgrade      # Upgrade to the latest version
+ai-tasks help         # Show help message
 ```
 
 ## Architecture
 
-Claude Tasks is a Go TUI application for scheduling Claude CLI tasks via cron expressions. The data is stored in SQLite at `~/.claude-tasks/tasks.db`.
+AI Tasks is a Go TUI application for scheduling Claude CLI tasks via cron expressions. The data is stored in SQLite at `~/.ai-tasks/tasks.db`.
 
 ### Package Structure
 
 ```
-cmd/claude-tasks/main.go   Entry point - CLI commands, initializes DB, starts scheduler, launches TUI
+cmd/ai-tasks/main.go       Entry point - CLI commands, initializes DB, starts scheduler, launches TUI
 internal/
   api/                     HTTP REST API server (chi router) for mobile/remote access
   tui/                     Bubble Tea TUI (views: list, add, edit, output, settings)
@@ -78,7 +78,7 @@ mobile/                    Expo/React Native app (connects to API server)
 
 ### Data Storage
 
-- Default database path: `~/.claude-tasks/tasks.db`
+- Default database path: `~/.ai-tasks/tasks.db`
 - Override with the `--db PATH` flag (absolute path to the SQLite file) on every command
 - Database auto-migrates on startup
 - `daemon.pid` file (co-located with the DB) tracks the running daemon process
@@ -123,7 +123,7 @@ npm run ios       # iOS simulator
 npm run android   # Android emulator
 ```
 
-The app requires the API server running (`claude-tasks serve`) and configured via the setup screen.
+The app requires the API server running (`ai-tasks serve`) and configured via the setup screen.
 
 ## TUI Keybindings
 

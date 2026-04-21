@@ -73,7 +73,7 @@ export function SplashScreen({ onAnimationComplete }: Props) {
       </Animated.Text>
 
       <Animated.Text style={[styles.title, { opacity: titleOpacity }]}>
-        Claude Tasks
+        AI Tasks
       </Animated.Text>
     </Animated.View>
   );
