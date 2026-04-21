@@ -40,7 +40,11 @@ var registry = map[Name]Spec{
 		Binary:        "gemini",
 		AllowedModels: []string{"flash", "auto", "pro", "flash-lite"},
 		BuildArgs: func(model, prompt string) []string {
-			return []string{"-p", "--approval-mode=yolo", "-m", model, prompt}
+			// gemini's `-p` is strict: it refuses values that look like flags
+			// (e.g. `--approval-mode=yolo`) and errors with "Not enough
+			// arguments following: p". The prompt value must come immediately
+			// after `-p`; other flags follow.
+			return []string{"-p", prompt, "--approval-mode=yolo", "-m", model}
 		},
 	},
 	Codex: {

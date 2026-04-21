@@ -52,7 +52,7 @@ func TestBuildCommandGemini(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"gemini", "-p", "--approval-mode=yolo", "-m", "flash", "hi"}
+	want := []string{"gemini", "-p", "hi", "--approval-mode=yolo", "-m", "flash"}
 	if !equalSlices(cmd.Args, want) {
 		t.Errorf("cmd.Args = %v, want %v", cmd.Args, want)
 	}

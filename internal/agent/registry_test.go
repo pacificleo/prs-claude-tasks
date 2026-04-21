@@ -79,7 +79,7 @@ func TestBuildArgsClaude(t *testing.T) {
 func TestBuildArgsGemini(t *testing.T) {
 	spec, _ := agent.Get(agent.Gemini)
 	args := spec.BuildArgs("flash", "hello world")
-	want := []string{"-p", "--approval-mode=yolo", "-m", "flash", "hello world"}
+	want := []string{"-p", "hello world", "--approval-mode=yolo", "-m", "flash"}
 	if !equalSlices(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}
