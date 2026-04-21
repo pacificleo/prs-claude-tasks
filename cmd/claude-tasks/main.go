@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 )
 
 func main() {
-	// Handle CLI commands
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
@@ -36,95 +36,108 @@ func main() {
 			printHelp()
 			return
 		case "daemon":
-			if err := runDaemon(); err != nil {
+			if err := runDaemon(os.Args[2:]); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		case "serve":
-			if err := runServer(); err != nil {
+			if err := runServer(os.Args[2:]); err != nil {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				os.Exit(1)
 			}
 			return
 		default:
-			fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
-			printHelp()
-			os.Exit(1)
+			// Anything that's not a known subcommand and doesn't look like a
+			// flag is rejected; flags fall through to TUI mode so users can
+			// run `claude-tasks --db /tmp/foo.db`.
+			if !strings.HasPrefix(os.Args[1], "-") {
+				fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
+				printHelp()
+				os.Exit(1)
+			}
 		}
 	}
 
-	// Determine database path
-	dataDir := os.Getenv("CLAUDE_TASKS_DATA")
-	if dataDir == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error getting home directory: %v\n", err)
-			os.Exit(1)
-		}
-		dataDir = filepath.Join(homeDir, ".claude-tasks")
-	}
-
-	dbPath := filepath.Join(dataDir, "tasks.db")
-	pidPath := filepath.Join(dataDir, "daemon.pid")
-
-	// Initialize database
-	database, err := db.New(dbPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-		os.Exit(1)
-	}
-	defer database.Close()
-
-	// Check if daemon is running
-	daemonPID, daemonRunning := isDaemonRunning(pidPath)
-
-	var sched *scheduler.Scheduler
-	if daemonRunning {
-		// Daemon is running, TUI operates in client mode
-		fmt.Printf("Daemon running (PID %d), TUI in client mode\n", daemonPID)
-	} else {
-		// No daemon, start our own scheduler
-		sched = scheduler.New(database)
-		if err := sched.Start(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error starting scheduler: %v\n", err)
-			os.Exit(1)
-		}
-		defer sched.Stop()
-	}
-
-	// Run TUI
-	if err := tui.Run(database, sched, daemonRunning); err != nil {
-		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
+	if err := runTUI(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func runDaemon() error {
-	dataDir := os.Getenv("CLAUDE_TASKS_DATA")
-	if dataDir == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("getting home directory: %w", err)
-		}
-		dataDir = filepath.Join(homeDir, ".claude-tasks")
+// defaultDBPath returns the default --db value: ~/.claude-tasks/tasks.db.
+// Falls back to "tasks.db" in the current directory if the home directory
+// can't be resolved (extremely unusual).
+func defaultDBPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "tasks.db"
+	}
+	return filepath.Join(home, ".claude-tasks", "tasks.db")
+}
+
+// pidPathFor returns the daemon PID file path co-located with the DB.
+func pidPathFor(dbPath string) string {
+	return filepath.Join(filepath.Dir(dbPath), "daemon.pid")
+}
+
+// addDBFlag registers the shared --db flag on fs and returns the bound value.
+func addDBFlag(fs *flag.FlagSet) *string {
+	return fs.String("db", defaultDBPath(), "Absolute path to the SQLite database file")
+}
+
+func runTUI(args []string) error {
+	fs := flag.NewFlagSet("claude-tasks", flag.ExitOnError)
+	dbPath := addDBFlag(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
 
-	dbPath := filepath.Join(dataDir, "tasks.db")
-	pidPath := filepath.Join(dataDir, "daemon.pid")
+	database, err := db.New(*dbPath)
+	if err != nil {
+		return fmt.Errorf("initializing database: %w", err)
+	}
+	defer database.Close()
 
-	// Check if daemon is already running
+	pidPath := pidPathFor(*dbPath)
+	daemonPID, daemonRunning := isDaemonRunning(pidPath)
+
+	var sched *scheduler.Scheduler
+	if daemonRunning {
+		fmt.Printf("Daemon running (PID %d), TUI in client mode\n", daemonPID)
+	} else {
+		sched = scheduler.New(database)
+		if err := sched.Start(); err != nil {
+			return fmt.Errorf("starting scheduler: %w", err)
+		}
+		defer sched.Stop()
+	}
+
+	return tui.Run(database, sched, daemonRunning)
+}
+
+func runDaemon(args []string) error {
+	fs := flag.NewFlagSet("daemon", flag.ExitOnError)
+	dbPath := addDBFlag(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	pidPath := pidPathFor(*dbPath)
+
 	if pid, running := isDaemonRunning(pidPath); running {
 		return fmt.Errorf("daemon already running (PID %d)", pid)
 	}
 
-	// Write PID file
+	if err := os.MkdirAll(filepath.Dir(pidPath), 0755); err != nil {
+		return fmt.Errorf("creating data directory: %w", err)
+	}
 	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", os.Getpid())), 0644); err != nil {
 		return fmt.Errorf("writing PID file: %w", err)
 	}
 	defer os.Remove(pidPath)
 
-	database, err := db.New(dbPath)
+	database, err := db.New(*dbPath)
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
@@ -138,9 +151,8 @@ func runDaemon() error {
 
 	fmt.Println("claude-tasks daemon started")
 	fmt.Printf("PID: %d\n", os.Getpid())
-	fmt.Printf("Database: %s\n", dbPath)
+	fmt.Printf("Database: %s\n", *dbPath)
 
-	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
@@ -149,24 +161,15 @@ func runDaemon() error {
 	return nil
 }
 
-func runServer() error {
-	// Parse flags for serve command
-	serveCmd := flag.NewFlagSet("serve", flag.ExitOnError)
-	port := serveCmd.Int("port", 8080, "HTTP server port")
-	_ = serveCmd.Parse(os.Args[2:])
-
-	dataDir := os.Getenv("CLAUDE_TASKS_DATA")
-	if dataDir == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("getting home directory: %w", err)
-		}
-		dataDir = filepath.Join(homeDir, ".claude-tasks")
+func runServer(args []string) error {
+	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	dbPath := addDBFlag(fs)
+	port := fs.Int("port", 8080, "HTTP server port")
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
 
-	dbPath := filepath.Join(dataDir, "tasks.db")
-
-	database, err := db.New(dbPath)
+	database, err := db.New(*dbPath)
 	if err != nil {
 		return fmt.Errorf("initializing database: %w", err)
 	}
@@ -182,21 +185,19 @@ func runServer() error {
 
 	addr := fmt.Sprintf(":%d", *port)
 	fmt.Printf("claude-tasks API server starting on %s\n", addr)
-	fmt.Printf("Database: %s\n", dbPath)
+	fmt.Printf("Database: %s\n", *dbPath)
 
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: server.Router(),
 	}
 
-	// Start server in goroutine
 	go func() {
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		}
 	}()
 
-	// Wait for shutdown signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
@@ -221,7 +222,6 @@ func isDaemonRunning(pidPath string) (int, bool) {
 		return 0, false
 	}
 
-	// Check if process exists
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return 0, false
@@ -239,18 +239,17 @@ func printHelp() {
 	fmt.Println(`claude-tasks - Schedule and run Claude CLI tasks via cron
 
 Usage:
-  claude-tasks              Launch the interactive TUI
-  claude-tasks daemon       Run scheduler in foreground (for services)
-  claude-tasks serve        Run HTTP API server (for mobile/remote access)
-  claude-tasks version      Show version information
-  claude-tasks upgrade      Upgrade to the latest version
-  claude-tasks help         Show this help message
+  claude-tasks [--db PATH]                    Launch the interactive TUI
+  claude-tasks daemon [--db PATH]             Run scheduler in foreground (for services)
+  claude-tasks serve  [--db PATH] [--port N]  Run HTTP API server (for mobile/remote access)
+  claude-tasks version                        Show version information
+  claude-tasks upgrade                        Upgrade to the latest version
+  claude-tasks help                           Show this help message
 
-Serve Options:
-  --port                    HTTP server port (default: 8080)
-
-Environment Variables:
-  CLAUDE_TASKS_DATA         Override data directory (default: ~/.claude-tasks)
+Flags:
+  --db PATH    Absolute path to the SQLite database file
+               (default: ~/.claude-tasks/tasks.db)
+  --port N     HTTP server port for 'serve' (default: 8080)
 
 For more information, visit: https://github.com/kylemclaren/claude-tasks`)
 }

@@ -117,13 +117,17 @@ The header shows real-time usage:
 
 ## Configuration
 
-Data is stored in `~/.claude-tasks/`:
-- `tasks.db` - SQLite database with tasks, runs, and settings
+By default the SQLite database lives at `~/.claude-tasks/tasks.db`. The
+parent directory also holds the daemon PID file when running in daemon
+mode.
 
-Override the data directory:
+Override the database path:
 ```bash
-CLAUDE_TASKS_DATA=/custom/path ./claude-tasks
+./claude-tasks --db /custom/path/tasks.db
 ```
+
+The `--db` flag is accepted by every command (`claude-tasks`,
+`claude-tasks daemon`, `claude-tasks serve`).
 
 ## Example Tasks
 

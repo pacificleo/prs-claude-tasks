@@ -78,10 +78,10 @@ mobile/                    Expo/React Native app (connects to API server)
 
 ### Data Storage
 
-- Default location: `~/.claude-tasks/`
-- Override with `CLAUDE_TASKS_DATA` environment variable
+- Default database path: `~/.claude-tasks/tasks.db`
+- Override with the `--db PATH` flag (absolute path to the SQLite file) on every command
 - Database auto-migrates on startup
-- `daemon.pid` file tracks running daemon process
+- `daemon.pid` file (co-located with the DB) tracks the running daemon process
 
 ### Operating Modes
 
