@@ -47,12 +47,12 @@ func TestBuildCommandClaude(t *testing.T) {
 func TestBuildCommandGemini(t *testing.T) {
 	stubBinaryOnPath(t, "gemini")
 	e := &Executor{}
-	task := &db.Task{Agent: db.AgentGemini, Model: "flash", Prompt: "hi", WorkingDir: "."}
+	task := &db.Task{Agent: db.AgentGemini, Model: "gemini-2.5-pro", Prompt: "hi", WorkingDir: "."}
 	cmd, err := e.buildCommand(context.Background(), task)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"gemini", "-p", "hi", "--approval-mode=yolo", "-m", "flash"}
+	want := []string{"gemini", "-p", "hi", "--approval-mode=yolo", "-m", "gemini-2.5-pro"}
 	if !equalSlices(cmd.Args, want) {
 		t.Errorf("cmd.Args = %v, want %v", cmd.Args, want)
 	}

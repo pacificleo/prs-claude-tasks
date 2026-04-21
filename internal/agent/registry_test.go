@@ -23,7 +23,7 @@ func TestAllAgentsRegistered(t *testing.T) {
 func TestDefaultModels(t *testing.T) {
 	cases := map[agent.Name]string{
 		agent.Claude: "claude-sonnet-4-6",
-		agent.Gemini: "flash",
+		agent.Gemini: "gemini-2.5-pro",
 		agent.Codex:  "gpt-5.4",
 	}
 	for n, want := range cases {
@@ -52,8 +52,10 @@ func TestValidate(t *testing.T) {
 		{"claude valid", agent.Claude, "claude-opus-4-7", false},
 		{"claude empty model ok", agent.Claude, "", false},
 		{"claude bad model", agent.Claude, "gpt-5.4", true},
-		{"gemini valid", agent.Gemini, "flash", false},
+		{"gemini valid", agent.Gemini, "gemini-2.5-pro", false},
+		{"gemini auto alias", agent.Gemini, "auto", false},
 		{"gemini bad", agent.Gemini, "ultra", true},
+		{"gemini legacy pro alias rejected", agent.Gemini, "pro", true},
 		{"codex valid", agent.Codex, "gpt-5.4-mini", false},
 		{"unknown agent", agent.Name("openai"), "gpt-5.4", true},
 	}
@@ -78,8 +80,8 @@ func TestBuildArgsClaude(t *testing.T) {
 
 func TestBuildArgsGemini(t *testing.T) {
 	spec, _ := agent.Get(agent.Gemini)
-	args := spec.BuildArgs("flash", "hello world")
-	want := []string{"-p", "hello world", "--approval-mode=yolo", "-m", "flash"}
+	args := spec.BuildArgs("gemini-2.5-pro", "hello world")
+	want := []string{"-p", "hello world", "--approval-mode=yolo", "-m", "gemini-2.5-pro"}
 	if !equalSlices(args, want) {
 		t.Errorf("got %v, want %v", args, want)
 	}
@@ -108,7 +110,7 @@ func TestShortDisplayStripsClaudePrefix(t *testing.T) {
 	}{
 		"claude opus":   {agent.Claude, "claude-opus-4-7", "claude@opus-4-7"},
 		"claude sonnet": {agent.Claude, "claude-sonnet-4-6", "claude@sonnet-4-6"},
-		"gemini flash":  {agent.Gemini, "flash", "gemini@flash"},
+		"gemini 2.5 pro": {agent.Gemini, "gemini-2.5-pro", "gemini@gemini-2.5-pro"},
 		"codex gpt":     {agent.Codex, "gpt-5.4-mini", "codex@gpt-5.4-mini"},
 	}
 	for name, tc := range cases {

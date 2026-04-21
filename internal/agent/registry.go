@@ -38,7 +38,19 @@ var registry = map[Name]Spec{
 	Gemini: {
 		Name:          Gemini,
 		Binary:        "gemini",
-		AllowedModels: []string{"flash", "auto", "pro", "flash-lite"},
+		// Canonical names from https://geminicli.com/docs/cli/model/. The bare
+		// aliases (`pro`, `flash`) the CLI also accepts route through preview
+		// tiers that hit "no capacity" errors, so they're omitted in favor of
+		// concrete stable names + the documented `auto` aliases.
+		AllowedModels: []string{
+			"gemini-2.5-pro",         // default — stable, capable
+			"gemini-2.5-flash",       // stable, fast
+			"gemini-3-pro-preview",   // preview
+			"gemini-3.1-pro-preview", // preview
+			"gemini-3-flash-preview", // preview
+			"auto",                   // routes Gemini 3 pro/flash by complexity (preview)
+			"auto-2.5",               // routes Gemini 2.5 pro/flash (stable)
+		},
 		BuildArgs: func(model, prompt string) []string {
 			// gemini's `-p` is strict: it refuses values that look like flags
 			// (e.g. `--approval-mode=yolo`) and errors with "Not enough
