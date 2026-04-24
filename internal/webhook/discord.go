@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/kylemclaren/claude-tasks/internal/agent"
 	"github.com/kylemclaren/claude-tasks/internal/db"
 )
 
@@ -25,7 +26,7 @@ func NewDiscord() *Discord {
 // DiscordEmbed represents a Discord embed object
 type DiscordEmbed struct {
 	Title       string       `json:"title"`
-	Description string       `json:"description"`
+	Description string       `json:"description,omitempty"`
 	Color       int          `json:"color"`
 	Fields      []EmbedField `json:"fields,omitempty"`
 	Timestamp   string       `json:"timestamp,omitempty"`
@@ -52,71 +53,60 @@ type DiscordPayload struct {
 
 // SendResult sends a task result to Discord
 func (d *Discord) SendResult(webhookURL string, task *db.Task, run *db.TaskRun) error {
-	// Determine color based on status
-	var color int
-	var statusEmoji string
-	switch run.Status {
-	case db.RunStatusCompleted:
-		color = 0x00FF00 // Green
-		statusEmoji = "✅"
-	case db.RunStatusFailed:
-		color = 0xFF0000 // Red
-		statusEmoji = "❌"
-	default:
-		color = 0xFFFF00 // Yellow
-		statusEmoji = "⏳"
-	}
+	return d.send(webhookURL, d.buildPayload(task, run))
+}
 
-	// Truncate output if too long (Discord has 4096 char limit for embed description)
-	// Keep markdown formatting - Discord embeds support bold, italic, links, lists, etc.
-	output := run.Output
-	if len(output) > 3500 {
-		output = output[:3500] + "\n\n*... (truncated)*"
-	}
-	if output == "" {
-		output = "*No output*"
-	}
-
-	// Calculate duration
-	var duration string
-	if run.EndedAt != nil {
-		dur := run.EndedAt.Sub(run.StartedAt)
-		duration = dur.Round(time.Second).String()
-	} else {
-		duration = "running"
-	}
+// buildPayload renders the tight notification payload: title-only on success,
+// title plus a code-blocked error (or output fallback) on failure.
+func (d *Discord) buildPayload(task *db.Task, run *db.TaskRun) DiscordPayload {
+	color, emoji := discordStatusStyle(run.Status)
 
 	embed := DiscordEmbed{
-		Title:       fmt.Sprintf("%s Task: %s (%s)", statusEmoji, task.Name, task.Display()),
-		Description: output,
-		Color:       color,
-		Fields: []EmbedField{
-			{Name: "Status", Value: string(run.Status), Inline: true},
-			{Name: "Duration", Value: duration, Inline: true},
-			{Name: "Working Dir", Value: fmt.Sprintf("`%s`", task.WorkingDir), Inline: true},
-		},
+		Title:     fmt.Sprintf("%s %s · %s · %s", emoji, task.Name, runDuration(run), agent.ShortDisplay(task.Agent, task.Model)),
+		Color:     color,
 		Timestamp: run.StartedAt.Format(time.RFC3339),
-		Footer:    &EmbedFooter{Text: "AI Tasks Scheduler"},
 	}
 
-	// Add error field if present - errors still use code block for readability
-	if run.Error != "" {
-		errMsg := run.Error
-		if len(errMsg) > 500 {
-			errMsg = errMsg[:500] + "..."
+	if run.Status == db.RunStatusFailed {
+		body := run.Error
+		if body == "" {
+			body = run.Output
 		}
-		embed.Fields = append(embed.Fields, EmbedField{
-			Name:   "⚠️ Error",
-			Value:  fmt.Sprintf("```\n%s\n```", errMsg),
-			Inline: false,
-		})
+		if body != "" {
+			// Discord embed description hard limit is 4096; reserve a little for
+			// the code-block fence and the truncation marker.
+			const maxBody = 3900
+			truncated := false
+			if len(body) > maxBody {
+				body = body[:maxBody]
+				truncated = true
+			}
+			embed.Description = "```\n" + body + "\n```"
+			if truncated {
+				embed.Description += "\n*… (truncated)*"
+			}
+		}
 	}
 
-	payload := DiscordPayload{
-		Embeds: []DiscordEmbed{embed},
-	}
+	return DiscordPayload{Embeds: []DiscordEmbed{embed}}
+}
 
-	return d.send(webhookURL, payload)
+func discordStatusStyle(status db.RunStatus) (int, string) {
+	switch status {
+	case db.RunStatusCompleted:
+		return 0x00FF00, "✅"
+	case db.RunStatusFailed:
+		return 0xFF0000, "❌"
+	default:
+		return 0xFFFF00, "⏳"
+	}
+}
+
+func runDuration(run *db.TaskRun) string {
+	if run.EndedAt == nil {
+		return "running"
+	}
+	return run.EndedAt.Sub(run.StartedAt).Round(time.Second).String()
 }
 
 func (d *Discord) send(webhookURL string, payload DiscordPayload) error {

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/kylemclaren/claude-tasks/internal/agent"
 	"github.com/kylemclaren/claude-tasks/internal/db"
 )
 
@@ -58,169 +58,61 @@ type SlackPayload struct {
 
 // SendResult sends a task result to Slack
 func (s *Slack) SendResult(webhookURL string, task *db.Task, run *db.TaskRun) error {
-	// Determine color and emoji based on status
-	var color, statusEmoji, statusText string
-	switch run.Status {
-	case db.RunStatusCompleted:
-		color = "#00FF00" // Green
-		statusEmoji = ":white_check_mark:"
-		statusText = "Completed"
-	case db.RunStatusFailed:
-		color = "#FF0000" // Red
-		statusEmoji = ":x:"
-		statusText = "Failed"
-	default:
-		color = "#FFFF00" // Yellow
-		statusEmoji = ":hourglass:"
-		statusText = "Running"
-	}
-
-	// Calculate duration
-	var duration string
-	if run.EndedAt != nil {
-		d := run.EndedAt.Sub(run.StartedAt)
-		duration = d.Round(time.Second).String()
-	} else {
-		duration = "running"
-	}
-
-	// Convert markdown to Slack mrkdwn format
-	output := convertToSlackMarkdown(run.Output)
-	if len(output) > 2500 {
-		output = output[:2500] + "\n... _(truncated)_"
-	}
-	if output == "" {
-		output = "_No output_"
-	}
-
-	// Build blocks
-	blocks := []SlackBlock{
-		{
-			Type: "header",
-			Text: &SlackTextObj{
-				Type:  "plain_text",
-				Text:  fmt.Sprintf("%s Task: %s (%s)", statusEmoji, task.Name, task.Display()),
-				Emoji: true,
-			},
-		},
-		{
-			Type: "section",
-			Fields: []SlackTextObj{
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Status:*\n%s", statusText)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Duration:*\n%s", duration)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Working Dir:*\n`%s`", task.WorkingDir)},
-				{Type: "mrkdwn", Text: fmt.Sprintf("*Started:*\n<!date^%d^{date_short} {time}|%s>", run.StartedAt.Unix(), run.StartedAt.Format(time.RFC3339))},
-			},
-		},
-		{
-			Type: "divider",
-		},
-		{
-			Type: "section",
-			Text: &SlackTextObj{
-				Type: "mrkdwn",
-				Text: output,
-			},
-		},
-	}
-
-	// Add error block if present
-	if run.Error != "" {
-		errMsg := run.Error
-		if len(errMsg) > 500 {
-			errMsg = errMsg[:500] + "..."
-		}
-		blocks = append(blocks, SlackBlock{
-			Type: "section",
-			Text: &SlackTextObj{
-				Type: "mrkdwn",
-				Text: fmt.Sprintf(":warning: *Error:*\n```%s```", errMsg),
-			},
-		})
-	}
-
-	// Add footer context
-	blocks = append(blocks, SlackBlock{
-		Type: "context",
-		Elements: []SlackElement{
-			{Type: "mrkdwn", Text: "AI Tasks Scheduler"},
-		},
-	})
-
-	payload := SlackPayload{
-		Attachments: []SlackAttachment{
-			{
-				Color:  color,
-				Blocks: blocks,
-			},
-		},
-	}
-
-	return s.send(webhookURL, payload)
+	return s.send(webhookURL, s.buildPayload(task, run))
 }
 
-// convertToSlackMarkdown converts standard markdown to Slack's mrkdwn format
-func convertToSlackMarkdown(text string) string {
-	// Slack uses different markdown:
-	// - Bold: *text* (not **text**)
-	// - Italic: _text_ (same)
-	// - Strikethrough: ~text~ (same)
-	// - Code: `code` (same)
-	// - Code blocks: ```code``` (same)
-	// - Links: <url|text> (not [text](url))
+// buildPayload renders the tight notification payload: a single section line
+// on success, plus a code-blocked error (or output fallback) on failure.
+func (s *Slack) buildPayload(task *db.Task, run *db.TaskRun) SlackPayload {
+	color, emoji := slackStatusStyle(run.Status)
 
-	result := text
+	header := SlackBlock{
+		Type: "section",
+		Text: &SlackTextObj{
+			Type: "mrkdwn",
+			Text: fmt.Sprintf("%s *%s* · %s · %s", emoji, task.Name, runDuration(run), agent.ShortDisplay(task.Agent, task.Model)),
+		},
+	}
+	blocks := []SlackBlock{header}
 
-	// Convert **bold** to *bold*
-	// Be careful not to affect code blocks
-	lines := strings.Split(result, "\n")
-	inCodeBlock := false
-	for i, line := range lines {
-		if strings.HasPrefix(line, "```") {
-			inCodeBlock = !inCodeBlock
+	if run.Status == db.RunStatusFailed {
+		body := run.Error
+		if body == "" {
+			body = run.Output
 		}
-		if !inCodeBlock {
-			// Replace **text** with *text* for bold
-			// Simple approach: replace ** with * (works for paired **)
-			for strings.Contains(lines[i], "**") {
-				lines[i] = strings.Replace(lines[i], "**", "*", 2)
+		if body != "" {
+			// Slack section text limit is 3000; reserve room for fences and marker.
+			const maxBody = 2900
+			truncated := false
+			if len(body) > maxBody {
+				body = body[:maxBody]
+				truncated = true
 			}
-
-			// Convert [text](url) to <url|text>
-			// This is a simple conversion - may not handle all edge cases
-			for {
-				start := strings.Index(lines[i], "[")
-				if start == -1 {
-					break
-				}
-				end := strings.Index(lines[i][start:], "](")
-				if end == -1 {
-					break
-				}
-				end += start
-				urlEnd := strings.Index(lines[i][end+2:], ")")
-				if urlEnd == -1 {
-					break
-				}
-				urlEnd += end + 2
-
-				linkText := lines[i][start+1 : end]
-				linkURL := lines[i][end+2 : urlEnd]
-				slackLink := fmt.Sprintf("<%s|%s>", linkURL, linkText)
-				lines[i] = lines[i][:start] + slackLink + lines[i][urlEnd+1:]
+			text := "```" + body + "```"
+			if truncated {
+				text += "\n_… (truncated)_"
 			}
-
-			// Convert # headers to bold (Slack doesn't support headers)
-			if strings.HasPrefix(strings.TrimSpace(lines[i]), "#") {
-				trimmed := strings.TrimSpace(lines[i])
-				// Remove # prefix and make bold
-				headerText := strings.TrimLeft(trimmed, "# ")
-				lines[i] = "*" + headerText + "*"
-			}
+			blocks = append(blocks, SlackBlock{
+				Type: "section",
+				Text: &SlackTextObj{Type: "mrkdwn", Text: text},
+			})
 		}
 	}
 
-	return strings.Join(lines, "\n")
+	return SlackPayload{
+		Attachments: []SlackAttachment{{Color: color, Blocks: blocks}},
+	}
+}
+
+func slackStatusStyle(status db.RunStatus) (string, string) {
+	switch status {
+	case db.RunStatusCompleted:
+		return "#00FF00", ":white_check_mark:"
+	case db.RunStatusFailed:
+		return "#FF0000", ":x:"
+	default:
+		return "#FFFF00", ":hourglass:"
+	}
 }
 
 func (s *Slack) send(webhookURL string, payload SlackPayload) error {
