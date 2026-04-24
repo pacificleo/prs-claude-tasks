@@ -3,7 +3,11 @@
 // of truth used by db validation, the executor, the REST API, and TUI/mobile pickers.
 package agent
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+)
 
 // Name identifies a CLI agent.
 type Name string
@@ -12,12 +16,14 @@ const (
 	Claude Name = "claude"
 	Gemini Name = "gemini"
 	Codex  Name = "codex"
+	Shell  Name = "shell"
 )
 
 // Spec describes one agent: how to invoke it and which models are allowed.
 type Spec struct {
 	Name          Name
 	Binary        string
+	BinaryFor     func(model string) string           // optional; takes precedence over Binary when non-nil
 	AllowedModels []string                            // first entry is the default
 	BuildArgs     func(model, prompt string) []string // argv after Binary
 }
@@ -67,10 +73,19 @@ var registry = map[Name]Spec{
 			return []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "-m", model, prompt}
 		},
 	},
+	Shell: {
+		Name: Shell,
+		// Binary varies with the chosen model (the shell name itself).
+		BinaryFor:     func(model string) string { return model },
+		AllowedModels: shellModels(),
+		BuildArgs: func(_, prompt string) []string {
+			return []string{"-c", prompt}
+		},
+	},
 }
 
 // order in which agents are returned by All() and rendered in pickers.
-var order = []Name{Claude, Gemini, Codex}
+var order = []Name{Claude, Gemini, Codex, Shell}
 
 // Get returns the spec for an agent.
 func Get(n Name) (Spec, bool) {
@@ -135,4 +150,19 @@ func ShortDisplay(n Name, model string) string {
 		m = m[7:]
 	}
 	return string(n) + "@" + m
+}
+
+// shellModels returns the allowed shells for the Shell agent. The user's
+// current $SHELL (basename) is listed first as the default; "bash" is always
+// included as a fallback. If $SHELL is unset or empty, the list is just
+// {"bash"}.
+func shellModels() []string {
+	current := filepath.Base(os.Getenv("SHELL"))
+	if current == "" || current == "." || current == "/" {
+		return []string{"bash"}
+	}
+	if current == "bash" {
+		return []string{"bash"}
+	}
+	return []string{current, "bash"}
 }

@@ -14,6 +14,7 @@ const (
 	AgentClaude = agent.Claude
 	AgentGemini = agent.Gemini
 	AgentCodex  = agent.Codex
+	AgentShell  = agent.Shell
 )
 
 // Task represents a scheduled Claude task

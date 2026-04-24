@@ -150,11 +150,16 @@ func (e *Executor) buildCommand(ctx context.Context, task *db.Task) (*exec.Cmd, 
 	if !ok {
 		return nil, fmt.Errorf("unknown agent %q", task.Agent)
 	}
-	if _, err := exec.LookPath(spec.Binary); err != nil {
-		return nil, fmt.Errorf("binary %q not found in PATH", spec.Binary)
+	model := task.ResolvedModel()
+	binary := spec.Binary
+	if spec.BinaryFor != nil {
+		binary = spec.BinaryFor(model)
 	}
-	args := spec.BuildArgs(task.ResolvedModel(), task.Prompt)
-	cmd := exec.CommandContext(ctx, spec.Binary, args...)
+	if _, err := exec.LookPath(binary); err != nil {
+		return nil, fmt.Errorf("binary %q not found in PATH", binary)
+	}
+	args := spec.BuildArgs(model, task.Prompt)
+	cmd := exec.CommandContext(ctx, binary, args...)
 	cmd.Dir = task.WorkingDir
 	return cmd, nil
 }

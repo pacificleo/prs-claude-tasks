@@ -72,6 +72,26 @@ func TestBuildCommandCodex(t *testing.T) {
 	}
 }
 
+func TestBuildCommandShell(t *testing.T) {
+	stubBinaryOnPath(t, "bash")
+	e := &Executor{}
+	task := &db.Task{Agent: db.AgentShell, Model: "bash", Prompt: "echo hi", WorkingDir: "."}
+	cmd, err := e.buildCommand(context.Background(), task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(cmd.Path, "bash") {
+		t.Errorf("cmd.Path = %q, want suffix bash", cmd.Path)
+	}
+	want := []string{"bash", "-c", "echo hi"}
+	if !equalSlices(cmd.Args, want) {
+		t.Errorf("cmd.Args = %v, want %v", cmd.Args, want)
+	}
+	if cmd.Dir != "." {
+		t.Errorf("cmd.Dir = %q, want %q", cmd.Dir, ".")
+	}
+}
+
 func TestBuildCommandResolvesEmptyModel(t *testing.T) {
 	stubBinaryOnPath(t, "gemini")
 	e := &Executor{}

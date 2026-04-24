@@ -102,8 +102,8 @@ func TestGetAgents(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if len(resp.Agents) != 3 {
-		t.Fatalf("got %d agents, want 3", len(resp.Agents))
+	if len(resp.Agents) != 4 {
+		t.Fatalf("got %d agents, want 4", len(resp.Agents))
 	}
 	for _, a := range resp.Agents {
 		if len(a.Models) == 0 || a.Models[0] != a.DefaultModel {

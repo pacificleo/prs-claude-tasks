@@ -9,10 +9,10 @@ import (
 
 func TestAllAgentsRegistered(t *testing.T) {
 	all := agent.All()
-	if len(all) != 3 {
-		t.Fatalf("All() returned %d agents, want 3", len(all))
+	if len(all) != 4 {
+		t.Fatalf("All() returned %d agents, want 4", len(all))
 	}
-	want := map[agent.Name]bool{agent.Claude: true, agent.Gemini: true, agent.Codex: true}
+	want := map[agent.Name]bool{agent.Claude: true, agent.Gemini: true, agent.Codex: true, agent.Shell: true}
 	for _, s := range all {
 		if !want[s.Name] {
 			t.Errorf("unexpected agent: %s", s.Name)
@@ -57,6 +57,9 @@ func TestValidate(t *testing.T) {
 		{"gemini bad", agent.Gemini, "ultra", true},
 		{"gemini legacy pro alias rejected", agent.Gemini, "pro", true},
 		{"codex valid", agent.Codex, "gpt-5.4-mini", false},
+		{"shell bash always allowed", agent.Shell, "bash", false},
+		{"shell empty model ok", agent.Shell, "", false},
+		{"shell bad model", agent.Shell, "powershell", true},
 		{"unknown agent", agent.Name("openai"), "gpt-5.4", true},
 	}
 	for _, tc := range cases {
@@ -93,6 +96,55 @@ func TestBuildArgsCodex(t *testing.T) {
 	want := []string{"exec", "--dangerously-bypass-approvals-and-sandbox", "-m", "gpt-5.4", "hello world"}
 	if !equalSlices(args, want) {
 		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestBuildArgsShell(t *testing.T) {
+	spec, _ := agent.Get(agent.Shell)
+	args := spec.BuildArgs("bash", "echo hi")
+	want := []string{"-c", "echo hi"}
+	if !equalSlices(args, want) {
+		t.Errorf("got %v, want %v", args, want)
+	}
+}
+
+func TestShellBinaryForReturnsModel(t *testing.T) {
+	spec, _ := agent.Get(agent.Shell)
+	if spec.BinaryFor == nil {
+		t.Fatal("Shell spec must define BinaryFor")
+	}
+	if got := spec.BinaryFor("zsh"); got != "zsh" {
+		t.Errorf("BinaryFor(\"zsh\") = %q, want %q", got, "zsh")
+	}
+	if got := spec.BinaryFor("bash"); got != "bash" {
+		t.Errorf("BinaryFor(\"bash\") = %q, want %q", got, "bash")
+	}
+}
+
+func TestShellDefaultModelFromEnv(t *testing.T) {
+	// We can't change the registry after init, so we just assert the
+	// invariants: default is one of the allowed models, and "bash" is always
+	// in the allowed list.
+	def := agent.DefaultModel(agent.Shell)
+	if def == "" {
+		t.Fatal("Shell default model must not be empty")
+	}
+	spec, _ := agent.Get(agent.Shell)
+	hasBash := false
+	hasDefault := false
+	for _, m := range spec.AllowedModels {
+		if m == "bash" {
+			hasBash = true
+		}
+		if m == def {
+			hasDefault = true
+		}
+	}
+	if !hasBash {
+		t.Errorf("Shell allowed models %v must contain \"bash\"", spec.AllowedModels)
+	}
+	if !hasDefault {
+		t.Errorf("Shell default %q not in allowed models %v", def, spec.AllowedModels)
 	}
 }
 
